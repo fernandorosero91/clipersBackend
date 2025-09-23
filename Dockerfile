@@ -1,5 +1,5 @@
 # Multi-stage build para optimizar el tamaño de la imagen
-FROM openjdk:21-jdk-slim as build
+FROM openjdk:21-jdk-slim AS build
 
 # Instalar Maven
 RUN apt-get update && apt-get install -y maven
@@ -20,7 +20,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Imagen de producción
-FROM openjdk:21-jre-slim
+FROM openjdk:21-jdk-slim
 
 # Crear usuario no-root para seguridad
 RUN addgroup --system spring && adduser --system spring --ingroup spring
