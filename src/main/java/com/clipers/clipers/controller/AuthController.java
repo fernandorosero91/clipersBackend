@@ -37,9 +37,21 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         try {
+            System.out.println("=== REGISTRO INICIADO ===");
+            System.out.println("Email: " + request.getEmail());
+            System.out.println("Role: " + request.getRole());
+            System.out.println("FirstName: " + request.getFirstName());
+            System.out.println("LastName: " + request.getLastName());
+            
             AuthResponse response = authService.register(request);
+            
+            System.out.println("=== REGISTRO EXITOSO ===");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            System.out.println("=== ERROR EN REGISTRO ===");
+            System.out.println("Error: " + e.getMessage());
+            System.out.println("Causa: " + (e.getCause() != null ? e.getCause().getMessage() : "Sin causa"));
+            e.printStackTrace();
             throw new RuntimeException("Error al registrar usuario: " + e.getMessage(), e);
         }
     }

@@ -60,9 +60,11 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/test/**").permitAll()
                 .requestMatchers("/api/clipers/public/**").permitAll()
                 .requestMatchers("/api/jobs/public/**").permitAll()
                 .requestMatchers("/api/posts/public/**").permitAll()
+                .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/").permitAll()
                 
