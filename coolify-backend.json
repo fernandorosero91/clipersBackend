@@ -1,0 +1,60 @@
+{
+  "name": "Clipers Backend",
+  "description": "Spring Boot backend API for Clipers social network",
+  "type": "docker",
+  "dockerfile": "Dockerfile",
+  "port": 8080,
+  "environment": {
+    "SPRING_PROFILES_ACTIVE": "docker",
+    "SERVER_PORT": "8080",
+    "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/clipers_db",
+    "SPRING_DATASOURCE_USERNAME": "clipers_user",
+    "SPRING_DATASOURCE_PASSWORD": "clipers_password",
+    "SPRING_DATA_REDIS_HOST": "redis",
+    "SPRING_RABBITMQ_HOST": "rabbitmq",
+    "SPRING_RABBITMQ_USERNAME": "clipers",
+    "SPRING_RABBITMQ_PASSWORD": "clipers123",
+    "JWT_SECRET": "mySecretKey123456789012345678901234567890123456789012345678901234567890",
+    "CORS_ALLOWED_ORIGINS": "https://your-frontend-domain.com,http://localhost:3000"
+  },
+  "build": {
+    "command": "./mvnw clean package -DskipTests"
+  },
+  "healthcheck": {
+    "enabled": true,
+    "path": "/api/test/health",
+    "interval": 30,
+    "timeout": 10,
+    "retries": 3
+  },
+  "resources": {
+    "memory": "1Gi",
+    "cpu": "1"
+  },
+  "dependencies": [
+    {
+      "name": "PostgreSQL",
+      "type": "postgresql",
+      "version": "15",
+      "environment": {
+        "POSTGRES_DB": "clipers_db",
+        "POSTGRES_USER": "clipers_user",
+        "POSTGRES_PASSWORD": "clipers_password"
+      }
+    },
+    {
+      "name": "Redis",
+      "type": "redis",
+      "version": "7"
+    },
+    {
+      "name": "RabbitMQ",
+      "type": "rabbitmq",
+      "version": "3",
+      "environment": {
+        "RABBITMQ_DEFAULT_USER": "clipers",
+        "RABBITMQ_DEFAULT_PASS": "clipers123"
+      }
+    }
+  ]
+}
