@@ -1,14 +1,15 @@
 version: '3.8'
 
 services:
-  # Base de datos PostgreSQL
+  # Base de datos PostgreSQL 17
   postgres:
-    image: postgres:15
+    image: postgres:17
     container_name: clipers-postgres
     environment:
       POSTGRES_DB: clipers_db
       POSTGRES_USER: clipers_user
       POSTGRES_PASSWORD: clipers_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5434:5432"
     volumes:
@@ -21,6 +22,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    restart: unless-stopped
 
   # Redis para caché y sesiones
   redis:
@@ -37,6 +39,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   # RabbitMQ para colas de mensajes
   rabbitmq:
@@ -57,6 +60,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   # Aplicación Spring Boot
   clipers-backend:
@@ -74,7 +78,7 @@ services:
       SPRING_RABBITMQ_USERNAME: clipers
       SPRING_RABBITMQ_PASSWORD: clipers123
       JWT_SECRET: mySecretKey123456789012345678901234567890123456789012345678901234567890
-      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      CORS_ALLOWED_ORIGINS: https://clipers.sufactura.store,http://localhost:3000,http://localhost:5173
     ports:
       - "8080:8080"
     volumes:
@@ -89,11 +93,12 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/test/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
