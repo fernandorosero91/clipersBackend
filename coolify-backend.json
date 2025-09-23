@@ -15,7 +15,7 @@
     "SPRING_RABBITMQ_USERNAME": "clipers",
     "SPRING_RABBITMQ_PASSWORD": "clipers123",
     "JWT_SECRET": "mySecretKey123456789012345678901234567890123456789012345678901234567890",
-    "CORS_ALLOWED_ORIGINS": "https://your-frontend-domain.com,http://localhost:3000"
+    "CORS_ALLOWED_ORIGINS": "https://clipers.sufactura.store,http://localhost:3000"
   },
   "build": {
     "command": "./mvnw clean package -DskipTests"
