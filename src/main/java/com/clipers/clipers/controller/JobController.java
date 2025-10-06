@@ -1,7 +1,10 @@
 package com.clipers.clipers.controller;
 
+import com.clipers.clipers.dto.UserDTO;
+import com.clipers.clipers.dto.JobDTO;
 import com.clipers.clipers.entity.Job;
 import com.clipers.clipers.entity.JobMatch;
+import com.clipers.clipers.service.AuthService;
 import com.clipers.clipers.service.JobService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -16,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -23,15 +27,17 @@ import java.util.Map;
 public class JobController {
 
     private final JobService jobService;
+    private final AuthService authService;
 
     @Autowired
-    public JobController(JobService jobService) {
+    public JobController(JobService jobService, AuthService authService) {
         this.jobService = jobService;
+        this.authService = authService;
     }
 
     @PostMapping
     @PreAuthorize("hasRole('COMPANY')")
-    public ResponseEntity<Job> createJob(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<JobDTO> createJob(@RequestBody Map<String, Object> request) {
         try {
             String companyUserId = getCurrentUserId();
             String title = (String) request.get("title");
@@ -47,9 +53,10 @@ public class JobController {
 
             Job.JobType type = Job.JobType.valueOf(typeStr.toUpperCase());
 
-            Job job = jobService.createJob(companyUserId, title, description, 
-                                         requirements, skills, location, type, salaryMin, salaryMax);
-            return ResponseEntity.ok(job);
+            Job job = jobService.createJob(companyUserId, title, description,
+                                          requirements, skills, location, type, salaryMin, salaryMax);
+            JobDTO jobDTO = new JobDTO(job);
+            return ResponseEntity.ok(jobDTO);
         } catch (Exception e) {
             throw new RuntimeException("Error al crear empleo: " + e.getMessage(), e);
         }
@@ -100,17 +107,21 @@ public class JobController {
     public ResponseEntity<Map<String, Object>> getActiveJobs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Job> jobsPage = jobService.findActiveJobs(pageable);
-        
+
+        List<JobDTO> jobDTOs = jobsPage.getContent().stream()
+                .map(JobDTO::new)
+                .collect(Collectors.toList());
+
         Map<String, Object> response = new HashMap<>();
-        response.put("jobs", jobsPage.getContent());
+        response.put("jobs", jobDTOs);
         response.put("hasMore", jobsPage.hasNext());
         response.put("totalPages", jobsPage.getTotalPages());
         response.put("currentPage", page);
         response.put("totalElements", jobsPage.getTotalElements());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -227,9 +238,12 @@ public class JobController {
     }
 
     private String getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // En producción, extraería el userId del JWT token
-        return "user-" + Math.abs(auth.getName().hashCode());
+        try {
+            UserDTO currentUser = authService.getCurrentUser();
+            return currentUser.getId();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener usuario actual: " + e.getMessage(), e);
+        }
     }
 
     private boolean hasFilters(String location, String type, Integer salaryMin, Integer salaryMax) {

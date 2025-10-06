@@ -133,11 +133,27 @@ public class AuthService {
 
     public UserDTO getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String email = authentication.getName();
-        
-        User user = userRepository.findByEmail(email)
+        if (authentication == null || !(authentication.getPrincipal() instanceof org.springframework.security.core.userdetails.UserDetails)) {
+            throw new RuntimeException("Usuario no autenticado");
+        }
+
+        org.springframework.security.core.userdetails.UserDetails userDetails =
+            (org.springframework.security.core.userdetails.UserDetails) authentication.getPrincipal();
+        String email = userDetails.getUsername();
+
+        User user = getUserByEmail(email);
+        return convertToDTO(user);
+    }
+
+    public UserDTO getCurrentUser(String token) {
+        if (token == null || token.isEmpty()) {
+            throw new RuntimeException("Token no proporcionado");
+        }
+
+        String userId = jwtTokenProvider.getUserIdFromToken(token);
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-        
+
         return convertToDTO(user);
     }
 

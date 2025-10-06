@@ -22,7 +22,18 @@ public class UserDTO {
     // Constructors
     public UserDTO() {}
 
-    public UserDTO(String id, String email, String firstName, String lastName, 
+    public UserDTO(User user) {
+        this.id = user.getId();
+        this.email = user.getEmail();
+        this.firstName = user.getFirstName();
+        this.lastName = user.getLastName();
+        this.role = user.getRole();
+        this.profileImage = user.getProfileImage();
+        this.createdAt = user.getCreatedAt();
+        this.updatedAt = user.getUpdatedAt();
+    }
+
+    public UserDTO(String id, String email, String firstName, String lastName,
                    User.Role role, String profileImage, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.email = email;

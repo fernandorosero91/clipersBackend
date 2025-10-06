@@ -2,19 +2,28 @@ package com.clipers.clipers.controller;
 
 import com.clipers.clipers.entity.Comment;
 import com.clipers.clipers.entity.Post;
+import com.clipers.clipers.entity.User;
+import com.clipers.clipers.security.CustomUserDetailsService.CustomUserPrincipal;
 import com.clipers.clipers.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Controlador que implementa Facade Pattern implícitamente
@@ -33,20 +42,73 @@ public class PostController {
     }
 
     @PostMapping
-    public ResponseEntity<Post> createPost(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Post> createPost(@RequestBody Map<String, Object> request, @AuthenticationPrincipal CustomUserPrincipal principal) {
         try {
-            String userId = getCurrentUserId();
+            if (principal == null) {
+                throw new RuntimeException("Usuario no autenticado");
+            }
+
+            User user = principal.getUser();
+            String userId = user.getId();
             String content = (String) request.get("content");
             String imageUrl = (String) request.get("imageUrl");
             String videoUrl = (String) request.get("videoUrl");
             String typeStr = (String) request.get("type");
-            
+
             Post.PostType type = typeStr != null ? Post.PostType.valueOf(typeStr.toUpperCase()) : Post.PostType.TEXT;
-            
+
             Post post = postService.createPost(userId, content, imageUrl, videoUrl, type);
             return ResponseEntity.ok(post);
         } catch (Exception e) {
             throw new RuntimeException("Error al crear publicación: " + e.getMessage(), e);
+        }
+    }
+
+    @PostMapping("/upload/image")
+    public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal CustomUserPrincipal principal) {
+        try {
+            if (principal == null) {
+                throw new RuntimeException("Usuario no autenticado");
+            }
+
+            if (file.isEmpty()) {
+                throw new RuntimeException("Archivo vacío");
+            }
+
+            // Validar tipo de archivo
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new RuntimeException("Solo se permiten archivos de imagen");
+            }
+
+            // Crear directorio si no existe
+            Path uploadPath = Paths.get("uploads", "images");
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            // Generar nombre único para el archivo
+            String originalFilename = file.getOriginalFilename();
+            String extension = originalFilename != null && originalFilename.contains(".")
+                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                : ".jpg";
+            String filename = UUID.randomUUID().toString() + extension;
+
+            // Guardar archivo
+            Path filePath = uploadPath.resolve(filename);
+            Files.copy(file.getInputStream(), filePath);
+
+            // Crear URL completa con el dominio del backend
+            String baseUrl = "http://localhost:8080";
+            String imageUrl = baseUrl + "/uploads/images/" + filename;
+
+            Map<String, String> response = new HashMap<>();
+            response.put("imageUrl", imageUrl);
+            response.put("filename", filename);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al subir imagen: " + e.getMessage(), e);
         }
     }
 
@@ -89,9 +151,13 @@ public class PostController {
     }
 
     @PostMapping("/{id}/like")
-    public ResponseEntity<Void> likePost(@PathVariable String id) {
+    public ResponseEntity<Void> likePost(@PathVariable String id, @AuthenticationPrincipal CustomUserPrincipal principal) {
         try {
-            String userId = getCurrentUserId();
+            if (principal == null) {
+                throw new RuntimeException("Usuario no autenticado");
+            }
+            User user = principal.getUser();
+            String userId = user.getId();
             postService.toggleLike(id, userId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
@@ -100,11 +166,15 @@ public class PostController {
     }
 
     @PostMapping("/{id}/comments")
-    public ResponseEntity<Comment> addComment(@PathVariable String id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<Comment> addComment(@PathVariable String id, @RequestBody Map<String, String> request, @AuthenticationPrincipal CustomUserPrincipal principal) {
         try {
-            String userId = getCurrentUserId();
+            if (principal == null) {
+                throw new RuntimeException("Usuario no autenticado");
+            }
+            User user = principal.getUser();
+            String userId = user.getId();
             String content = request.get("content");
-            
+
             Comment comment = postService.addComment(id, userId, content);
             return ResponseEntity.ok(comment);
         } catch (Exception e) {
@@ -158,8 +228,16 @@ public class PostController {
         return ResponseEntity.ok(response);
     }
 
-    private String getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return "user-" + Math.abs(auth.getName().hashCode());
+    private String getCurrentUserId(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            // Aquí necesitaríamos inyectar JwtTokenProvider, pero por simplicidad usaremos el SecurityContext
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof User) {
+                User user = (User) auth.getPrincipal();
+                return user.getId();
+            }
+        }
+        throw new RuntimeException("Usuario no autenticado");
     }
 }

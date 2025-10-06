@@ -1,6 +1,7 @@
 package com.clipers.clipers.controller;
 
 import com.clipers.clipers.entity.ATSProfile;
+import com.clipers.clipers.repository.UserRepository;
 import com.clipers.clipers.service.ATSProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,18 +16,20 @@ import java.util.Map;
  * Controlador para gestión de perfiles ATS
  */
 @RestController
-@RequestMapping("/api/profile")
+@RequestMapping("/api/ats-profiles")
 @CrossOrigin(origins = "*")
 public class ProfileController {
 
     private final ATSProfileService atsProfileService;
+    private final UserRepository userRepository;
 
     @Autowired
-    public ProfileController(ATSProfileService atsProfileService) {
+    public ProfileController(ATSProfileService atsProfileService, UserRepository userRepository) {
         this.atsProfileService = atsProfileService;
+        this.userRepository = userRepository;
     }
 
-    @GetMapping("/ats")
+    @GetMapping("/me")
     @PreAuthorize("hasRole('CANDIDATE')")
     public ResponseEntity<ATSProfile> getATSProfile() {
         try {
@@ -39,7 +42,7 @@ public class ProfileController {
         }
     }
 
-    @GetMapping("/ats/{userId}")
+    @GetMapping("/user/{userId}")
     public ResponseEntity<ATSProfile> getATSProfileByUserId(@PathVariable String userId) {
         return atsProfileService.findByUserId(userId)
                 .map(ResponseEntity::ok)
@@ -77,6 +80,11 @@ public class ProfileController {
 
     private String getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return "user-" + Math.abs(auth.getName().hashCode());
+        // Obtener el email del JWT token y buscar el usuario real en la base de datos
+        String email = auth.getName();
+        // Buscar el usuario por email y devolver su ID real
+        return userRepository.findByEmail(email)
+                .map(user -> user.getId())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + email));
     }
 }

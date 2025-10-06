@@ -1,5 +1,6 @@
 package com.clipers.clipers.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
@@ -17,6 +18,7 @@ public class Language {
     @Enumerated(EnumType.STRING)
     private LanguageLevel level;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ats_profile_id", nullable = false)
     private ATSProfile atsProfile;

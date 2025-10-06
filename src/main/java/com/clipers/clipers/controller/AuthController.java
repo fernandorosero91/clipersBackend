@@ -72,9 +72,15 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDTO> getCurrentUser() {
+    public ResponseEntity<UserDTO> getCurrentUser(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
-            UserDTO user = authService.getCurrentUser();
+            // Extract token from header if present
+            String token = null;
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+
+            UserDTO user = authService.getCurrentUser(token);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             throw new RuntimeException("Error al obtener usuario actual", e);

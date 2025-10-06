@@ -1,65 +1,39 @@
-package com.clipers.clipers.entity;
+package com.clipers.clipers.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import com.clipers.clipers.entity.Company;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
-@Entity
-@Table(name = "companies")
-public class Company {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+public class CompanyDTO {
     private String id;
-
-    @NotBlank
     private String name;
-
-    @Column(columnDefinition = "TEXT")
     private String description;
-
     private String industry;
-
     private String size;
-
     private String website;
-
     private String logo;
-
     private String location;
-
-    @JsonIgnore
-    @OneToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-    @CreationTimestamp
+    private String userId;
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    // Relationships
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Job> jobs;
+    public CompanyDTO() {}
 
-    // Constructors
-    public Company() {}
-
-    public Company(String name, String description, String industry, String location, User user) {
-        this.name = name;
-        this.description = description;
-        this.industry = industry;
-        this.location = location;
-        this.user = user;
+    public CompanyDTO(Company company) {
+        this.id = company.getId();
+        this.name = company.getName();
+        this.description = company.getDescription();
+        this.industry = company.getIndustry();
+        this.size = company.getSize();
+        this.website = company.getWebsite();
+        this.logo = company.getLogo();
+        this.location = company.getLocation();
+        this.userId = company.getUser().getId();
+        this.createdAt = company.getCreatedAt();
+        this.updatedAt = company.getUpdatedAt();
     }
 
-    // Getters and Setters
+    // Getters and setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -84,15 +58,12 @@ public class Company {
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-
-    public List<Job> getJobs() { return jobs; }
-    public void setJobs(List<Job> jobs) { this.jobs = jobs; }
 }

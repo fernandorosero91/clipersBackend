@@ -11,7 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface ATSProfileRepository extends JpaRepository<ATSProfile, String> {
-    
+
     Optional<ATSProfile> findByUserId(String userId);
     
     Optional<ATSProfile> findByCliperId(String cliperId);

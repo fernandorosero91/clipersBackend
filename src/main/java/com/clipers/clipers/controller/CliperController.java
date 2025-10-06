@@ -2,6 +2,8 @@ package com.clipers.clipers.controller;
 
 import com.clipers.clipers.entity.Cliper;
 import com.clipers.clipers.service.CliperService;
+import com.clipers.clipers.dto.CliperDTO;
+import com.clipers.clipers.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,33 +19,41 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
 @RestController
 @RequestMapping("/api/clipers")
 @CrossOrigin(origins = "*")
 public class CliperController {
 
     private final CliperService cliperService;
+    private final UserRepository userRepository;
 
     @Autowired
-    public CliperController(CliperService cliperService) {
+    public CliperController(CliperService cliperService, UserRepository userRepository) {
         this.cliperService = cliperService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/upload")
     @PreAuthorize("hasRole('CANDIDATE')")
-    public ResponseEntity<Cliper> uploadCliper(
+    public ResponseEntity<CliperDTO> uploadCliper(
             @RequestParam("video") MultipartFile videoFile,
             @RequestParam("title") String title,
             @RequestParam("description") String description) {
         try {
             String userId = getCurrentUserId();
-            
+
             // Simular guardado de archivo y obtener URL
             String videoUrl = saveVideoFile(videoFile);
             Integer duration = extractVideoDuration(videoFile);
-            
-            Cliper cliper = cliperService.createCliper(userId, title, description, videoUrl, duration);
-            return ResponseEntity.ok(cliper);
+
+            Cliper cliper = cliperService.createCliper(userId, title, description, videoUrl, duration, videoFile);
+            return ResponseEntity.ok(new CliperDTO(cliper));
         } catch (Exception e) {
             throw new RuntimeException("Error al subir cliper: " + e.getMessage(), e);
         }
@@ -51,57 +61,91 @@ public class CliperController {
 
     @PostMapping
     @PreAuthorize("hasRole('CANDIDATE')")
-    public ResponseEntity<Cliper> createCliper(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<CliperDTO> createCliper(@RequestBody Map<String, Object> request) {
         try {
             String userId = getCurrentUserId();
-            
+
             String title = (String) request.get("title");
             String description = (String) request.get("description");
             String videoUrl = (String) request.get("videoUrl");
             Integer duration = (Integer) request.get("duration");
-            
-            Cliper cliper = cliperService.createCliper(userId, title, description, videoUrl, duration);
-            return ResponseEntity.ok(cliper);
+
+            // Para este endpoint sin archivo, pasamos null y usaremos procesamiento simulado
+            Cliper cliper = cliperService.createCliper(userId, title, description, videoUrl, duration, null);
+            return ResponseEntity.ok(new CliperDTO(cliper));
         } catch (Exception e) {
             throw new RuntimeException("Error al crear cliper: " + e.getMessage(), e);
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Cliper> getCliper(@PathVariable String id) {
+    public ResponseEntity<CliperDTO> getCliper(@PathVariable String id) {
         return cliperService.findById(id)
-                .map(ResponseEntity::ok)
+                .map(cliper -> ResponseEntity.ok(new CliperDTO(cliper)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Cliper>> getClipersByUser(@PathVariable String userId) {
+    public ResponseEntity<List<CliperDTO>> getClipersByUser(@PathVariable String userId) {
         List<Cliper> clipers = cliperService.findByUserId(userId);
-        return ResponseEntity.ok(clipers);
+        List<CliperDTO> cliperDTOs = clipers.stream()
+                .map(CliperDTO::new)
+                .toList();
+        return ResponseEntity.ok(cliperDTOs);
+    }
+
+    @GetMapping("/my")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<CliperDTO>> getMyClipers() {
+        try {
+            String userId = getCurrentUserId();
+            List<Cliper> clipers = cliperService.findByUserId(userId);
+            List<CliperDTO> cliperDTOs = clipers.stream()
+                    .map(CliperDTO::new)
+                    .toList();
+            return ResponseEntity.ok(cliperDTOs);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener mis clipers: " + e.getMessage(), e);
+        }
+    }
+
+    @DeleteMapping("/admin/clear-all")
+    public ResponseEntity<String> clearAllClipers() {
+        try {
+            cliperService.clearAllClipers();
+            return ResponseEntity.ok("Todos los clipers han sido eliminados");
+        } catch (Exception e) {
+            throw new RuntimeException("Error al eliminar clipers: " + e.getMessage(), e);
+        }
     }
 
     @GetMapping("/user/{userId}/paginated")
-    public ResponseEntity<Page<Cliper>> getClipersByUserPaginated(
+    public ResponseEntity<Page<CliperDTO>> getClipersByUserPaginated(
             @PathVariable String userId, Pageable pageable) {
         Page<Cliper> clipers = cliperService.findByUserId(userId, pageable);
-        return ResponseEntity.ok(clipers);
+        Page<CliperDTO> cliperDTOs = clipers.map(CliperDTO::new);
+        return ResponseEntity.ok(cliperDTOs);
     }
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> getClipers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Cliper> clipersPage = cliperService.findProcessedClipers(pageable);
-        
+
+        List<CliperDTO> cliperDTOs = clipersPage.getContent().stream()
+                .map(CliperDTO::new)
+                .toList();
+
         Map<String, Object> response = new HashMap<>();
-        response.put("clipers", clipersPage.getContent());
+        response.put("clipers", cliperDTOs);
         response.put("hasMore", clipersPage.hasNext());
         response.put("totalPages", clipersPage.getTotalPages());
         response.put("currentPage", page);
         response.put("totalElements", clipersPage.getTotalElements());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -109,43 +153,51 @@ public class CliperController {
     public ResponseEntity<Map<String, Object>> getProcessedClipers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Cliper> clipersPage = cliperService.findProcessedClipers(pageable);
-        
+
+        List<CliperDTO> cliperDTOs = clipersPage.getContent().stream()
+                .map(CliperDTO::new)
+                .toList();
+
         Map<String, Object> response = new HashMap<>();
-        response.put("clipers", clipersPage.getContent());
+        response.put("clipers", cliperDTOs);
         response.put("hasMore", clipersPage.hasNext());
         response.put("totalPages", clipersPage.getTotalPages());
         response.put("currentPage", page);
         response.put("totalElements", clipersPage.getTotalElements());
-        
+
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<Cliper>> searchClipers(
+    public ResponseEntity<Page<CliperDTO>> searchClipers(
             @RequestParam String query, Pageable pageable) {
         Page<Cliper> clipers = cliperService.searchClipers(query, pageable);
-        return ResponseEntity.ok(clipers);
+        Page<CliperDTO> cliperDTOs = clipers.map(CliperDTO::new);
+        return ResponseEntity.ok(cliperDTOs);
     }
 
     @GetMapping("/by-skill")
-    public ResponseEntity<List<Cliper>> getClipersBySkill(@RequestParam String skill) {
+    public ResponseEntity<List<CliperDTO>> getClipersBySkill(@RequestParam String skill) {
         List<Cliper> clipers = cliperService.findBySkill(skill);
-        return ResponseEntity.ok(clipers);
+        List<CliperDTO> cliperDTOs = clipers.stream()
+                .map(CliperDTO::new)
+                .toList();
+        return ResponseEntity.ok(cliperDTOs);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('CANDIDATE')")
-    public ResponseEntity<Cliper> updateCliper(
+    public ResponseEntity<CliperDTO> updateCliper(
             @PathVariable String id, @RequestBody Map<String, String> request) {
         try {
             String title = request.get("title");
             String description = request.get("description");
-            
+
             Cliper updatedCliper = cliperService.updateCliper(id, title, description);
-            return ResponseEntity.ok(updatedCliper);
+            return ResponseEntity.ok(new CliperDTO(updatedCliper));
         } catch (Exception e) {
             throw new RuntimeException("Error al actualizar cliper: " + e.getMessage(), e);
         }
@@ -163,11 +215,14 @@ public class CliperController {
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Cliper>> getClipersByStatus(@PathVariable String status) {
+    public ResponseEntity<List<CliperDTO>> getClipersByStatus(@PathVariable String status) {
         try {
             Cliper.Status statusEnum = Cliper.Status.valueOf(status.toUpperCase());
             List<Cliper> clipers = cliperService.findByStatus(statusEnum);
-            return ResponseEntity.ok(clipers);
+            List<CliperDTO> cliperDTOs = clipers.stream()
+                    .map(CliperDTO::new)
+                    .toList();
+            return ResponseEntity.ok(cliperDTOs);
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Estado inválido: " + status, e);
         }
@@ -175,16 +230,34 @@ public class CliperController {
 
     private String getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // En producción, extraería el userId del JWT token
-        // Por ahora, simulamos con un ID basado en el email
-        return "user-" + Math.abs(auth.getName().hashCode());
+        // Obtener el email del JWT token y buscar el usuario real en la base de datos
+        String email = auth.getName();
+        // Buscar el usuario por email y devolver su ID real
+        return userRepository.findByEmail(email)
+                .map(user -> user.getId())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + email));
     }
 
     private String saveVideoFile(MultipartFile videoFile) {
-        // Simular guardado de archivo
-        // En producción, guardaría en S3, local storage, etc.
-        String fileName = "video_" + System.currentTimeMillis() + "_" + videoFile.getOriginalFilename();
-        return "/uploads/videos/" + fileName;
+        try {
+            // Crear directorio si no existe
+            Path uploadDir = Paths.get("./uploads/videos");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+
+            // Generar nombre único para el archivo
+            String fileName = "video_" + System.currentTimeMillis() + "_" + videoFile.getOriginalFilename();
+            Path filePath = uploadDir.resolve(fileName);
+
+            // Guardar el archivo
+            Files.copy(videoFile.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Devolver URL completa para que el frontend pueda acceder
+            return "http://localhost:8080/uploads/videos/" + fileName;
+        } catch (IOException e) {
+            throw new RuntimeException("Error al guardar el archivo de video: " + e.getMessage());
+        }
     }
 
     private Integer extractVideoDuration(MultipartFile videoFile) {

@@ -64,6 +64,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/clipers/public/**").permitAll()
                 .requestMatchers("/api/jobs/public/**").permitAll()
                 .requestMatchers("/api/posts/public/**").permitAll()
+                .requestMatchers("/uploads/videos/**").permitAll()
+                .requestMatchers("/uploads/images/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/").permitAll()
