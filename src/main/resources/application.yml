@@ -1,0 +1,105 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: clipers-backend
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/clipers_db
+    username: clipers_user
+    password: clipers_password
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+        
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:8080
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+# AI + ATS Integration Configuration
+ai:
+  score:
+    weights:
+      ai: 0.6
+      ats: 0.3
+      profile: 0.1
+
+# Cache Configuration
+cache:
+  ttl: 1800  # 30 minutes in seconds
+
+# Logging Configuration
+logging:
+  level:
+    com.clipers.ai.integration: DEBUG
+    org.springframework.data.redis: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/clipers-backend.log
+    max-size: 10MB
+    max-history: 7
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Swagger/OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+  info:
+    title: Clipers Backend API
+    description: API for Clipers Backend with AI + ATS Integration
+    version: 1.0.0
+    contact:
+      name: Clipers Team
+      email: team@clipers.com
+    license:
+      name: Apache 2.0
+      url: http://www.apache.org/licenses/LICENSE-2.0.html
+  packages-to-scan: com.clipers.ai.integration.controller
+  paths-to-match: /api/integration/**
+
+# JWT Configuration
+jwt:
+  secret: mySecretKey123456789012345678901234567890123456789012345678901234567890
+  expiration: 86400000  # 24 hours in milliseconds

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: clipers-postgres
+    environment:
+      POSTGRES_DB: clipers_db
+      POSTGRES_USER: clipers_user
+      POSTGRES_PASSWORD: clipers_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - clipers-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: clipers-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - clipers-network
+
+  backend:
+    build: .
+    container_name: clipers-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/clipers_db
+      SPRING_DATASOURCE_USERNAME: clipers_user
+      SPRING_DATASOURCE_PASSWORD: clipers_password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - clipers-network
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
+
+networks:
+  clipers-network:
+    driver: bridge
