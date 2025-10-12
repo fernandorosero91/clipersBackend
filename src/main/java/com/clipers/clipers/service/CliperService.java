@@ -35,12 +35,14 @@ import java.util.Optional;
 @Service
 @Transactional
 public class CliperService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CliperService.class);
 
     private final CliperRepository cliperRepository;
     private final UserRepository userRepository;
     private final ATSProfileRepository atsProfileRepository;
     private final NotificationService notificationService;
     private final RestTemplate restTemplate;
+    private final com.clipers.clipers.service.video.VideoProcessingService videoProcessingService;
 
     @Value("${video.processing.service.url:https://micoservicioprocesarvideo.onrender.com/upload-video}")
     private String videoProcessingServiceUrl;
@@ -50,12 +52,14 @@ public class CliperService {
                          UserRepository userRepository,
                          ATSProfileRepository atsProfileRepository,
                          NotificationService notificationService,
-                         RestTemplate restTemplate) {
+                         RestTemplate restTemplate,
+                         com.clipers.clipers.service.video.VideoProcessingService videoProcessingService) {
         this.cliperRepository = cliperRepository;
         this.userRepository = userRepository;
         this.atsProfileRepository = atsProfileRepository;
         this.notificationService = notificationService;
         this.restTemplate = restTemplate;
+        this.videoProcessingService = videoProcessingService;
     }
 
     /**
@@ -64,6 +68,7 @@ public class CliperService {
      * Ahora procesa síncronamente antes de guardar para rellenar ATS automáticamente
      */
     public Cliper createCliper(String userId, String title, String description, String videoUrl, Integer duration, org.springframework.web.multipart.MultipartFile videoFile) {
+        log.info("Inicio createCliper userId={}, title={}", userId, title);
         // Step 1: Validate user
         User user = validateAndGetUser(userId);
 
@@ -130,6 +135,7 @@ public class CliperService {
 
         // Step 7: Send notification
         notificationService.notifyCliperProcessed(user.getId(), cliper.getId());
+        log.info("Fin createCliper userId={}, cliperId={}", user.getId(), cliper.getId());
 
         return cliper;
     }
@@ -276,63 +282,17 @@ public class CliperService {
     }
 
     /**
-     * Llama al microservicio externo para procesar el video
+     * Llama al microservicio externo para procesar el video.
+     * Mantiene la firma por compatibilidad binaria pero delega al servicio modular.
      */
+    @Deprecated
     private VideoProcessingResponse callVideoProcessingService(java.nio.file.Path filePath) {
         try {
-            System.out.println("=== LLAMANDO AL MICROSERVICIO ===");
-            System.out.println("URL: " + videoProcessingServiceUrl);
-            System.out.println("Archivo: " + filePath.toString());
-            System.out.println("Archivo existe: " + java.nio.file.Files.exists(filePath));
-            System.out.println("Tamaño del archivo: " + (java.nio.file.Files.exists(filePath) ? java.nio.file.Files.size(filePath) : "N/A"));
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new org.springframework.core.io.FileSystemResource(filePath.toFile()));
-
-            HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
-
-            System.out.println("Enviando petición al microservicio...");
-            ResponseEntity<VideoProcessingResponse> response = restTemplate.postForEntity(
-                videoProcessingServiceUrl,
-                entity,
-                VideoProcessingResponse.class
-            );
-
-            System.out.println("=== RESPUESTA DEL MICROSERVICIO ===");
-            System.out.println("Status: " + response.getStatusCode());
-            VideoProcessingResponse responseBody = response.getBody();
-            System.out.println("Body: " + responseBody);
-
-            if (responseBody != null) {
-                System.out.println("📝 Transcripción: " + responseBody.getTranscription());
-                if (responseBody.getProfile() != null) {
-                    System.out.println("👤 Nombre: " + responseBody.getProfile().getName());
-                    System.out.println("💼 Profesión: " + responseBody.getProfile().getProfession());
-                    System.out.println("📚 Experiencia: " + responseBody.getProfile().getExperience());
-                    System.out.println("🎓 Educación: " + responseBody.getProfile().getEducation());
-                    System.out.println("🛠️ Tecnologías: " + responseBody.getProfile().getTechnologies());
-                    System.out.println("🌐 Idiomas: " + responseBody.getProfile().getLanguages());
-                    System.out.println("🏆 Logros: " + responseBody.getProfile().getAchievements());
-                    System.out.println("🤝 Habilidades blandas: " + responseBody.getProfile().getSoftSkills());
-                } else {
-                    System.out.println("⚠️ Perfil es null");
-                }
-            }
-
-            if (response.getStatusCode().is2xxSuccessful()) {
-                System.out.println("✅ Microservicio respondió exitosamente");
-                return response.getBody();
-            } else {
-                System.err.println("❌ Error en microservicio: " + response.getStatusCode());
-                return null;
-            }
-
+            log.info("Delegando procesamiento de video al servicio modular. file={}", filePath);
+            return videoProcessingService.uploadVideo(filePath);
         } catch (Exception e) {
-            System.err.println("❌ Error llamando al microservicio de procesamiento: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error procesando video mediante servicio modular. file={}, causa={}", filePath, e.getMessage(), e);
+            // Mantener compatibilidad con comportamiento previo (retornar null en caso de error)
             return null;
         }
     }

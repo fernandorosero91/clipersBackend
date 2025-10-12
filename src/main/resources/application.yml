@@ -6,9 +6,9 @@ spring:
     name: clipers-backend
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/clipers_db
-    username: clipers_user
-    password: clipers_password
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/clipers_db}
+    username: ${SPRING_DATASOURCE_USERNAME:clipers_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:089056}
     driver-class-name: org.postgresql.Driver
   
   jpa:
@@ -21,48 +21,61 @@ spring:
         format_sql: true
   
   redis:
-    host: localhost
-    port: 6379
-    password:
-    timeout: 2000ms
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: ${REDIS_TIMEOUT:2000ms}
     lettuce:
       pool:
-        max-active: 8
-        max-wait: -1ms
-        max-idle: 8
-        min-idle: 0
+        max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+        max-wait: ${REDIS_POOL_MAX_WAIT:-1ms}
+        max-idle: ${REDIS_POOL_MAX_IDLE:8}
+        min-idle: ${REDIS_POOL_MIN_IDLE:0}
         
   cors:
-    allowed-origins: http://localhost:3000,http://localhost:8080
-    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-    allowed-headers: "*"
-    allow-credentials: true
-    max-age: 3600
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
+    allowed-headers: ${CORS_ALLOWED_HEADERS:"*"}
+    allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+    max-age: ${CORS_MAX_AGE:3600}
 
 # AI + ATS Integration Configuration
 ai:
   score:
     weights:
-      ai: 0.6
-      ats: 0.3
-      profile: 0.1
+      ai: ${AI_WEIGHT_AI:0.6}
+      ats: ${AI_WEIGHT_ATS:0.3}
+      profile: ${AI_WEIGHT_PROFILE:0.1}
 
 # Cache Configuration
 cache:
-  ttl: 1800  # 30 minutes in seconds
+  ttl: ${CACHE_TTL:1800}  # 30 minutes in seconds
 
 # Logging Configuration
 logging:
   level:
+    root: INFO
+    com.clipers: DEBUG
     com.clipers.ai.integration: DEBUG
     org.springframework.data.redis: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/clipers-backend.log
     max-size: 10MB
     max-history: 7
+    total-size-cap: 100MB
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      total-size-cap: 100MB
+      history: 7
+      clean-history-on-start: false
 
 # Actuator Configuration
 management:
@@ -101,5 +114,7 @@ springdoc:
 
 # JWT Configuration
 jwt:
-  secret: mySecretKey123456789012345678901234567890123456789012345678901234567890
-  expiration: 86400000  # 24 hours in milliseconds
+  secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890123456789012345678901234567890}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours in milliseconds
+  header: ${JWT_HEADER:Authorization}
+  prefix: ${JWT_PREFIX:Bearer}

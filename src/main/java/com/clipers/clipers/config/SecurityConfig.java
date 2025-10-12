@@ -19,6 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.core.env.Environment;
+import java.util.stream.Collectors;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,14 +33,15 @@ public class SecurityConfig {
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${spring.cors.allowed-origins}")
-    private String[] allowedOrigins;
+    private final Environment env;
 
     @Autowired
     public SecurityConfig(CustomUserDetailsService customUserDetailsService,
-                         JwtAuthenticationFilter jwtAuthenticationFilter) {
+                          JwtAuthenticationFilter jwtAuthenticationFilter,
+                          Environment env) {
         this.customUserDetailsService = customUserDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.env = env;
     }
 
     @Bean
@@ -100,7 +103,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
+        List<String> origins = resolveAllowedOrigins();
+        if (origins.contains("*")) {
+            configuration.setAllowedOriginPatterns(origins);
+        } else {
+            configuration.setAllowedOrigins(origins);
+        }
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
@@ -109,5 +117,25 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    // Utilidades CORS tolerantes a múltiples fuentes de configuración
+    private List<String> resolveAllowedOrigins() {
+        String value = env.getProperty("spring.cors.allowed-origins");
+        if (isBlank(value)) value = env.getProperty("cors.allowed-origins");
+        if (isBlank(value)) value = env.getProperty("CORS_ALLOWED_ORIGINS");
+        if (isBlank(value)) return java.util.List.of("*");
+        return splitCsv(value);
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private List<String> splitCsv(String csv) {
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 }

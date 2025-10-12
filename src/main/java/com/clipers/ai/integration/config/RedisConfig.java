@@ -14,13 +14,14 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 
 import java.time.Duration;
 
 /**
  * Configuration class for Redis caching
  */
-@Configuration
+@Configuration("aiIntegrationRedisConfig")
 @EnableCaching
 public class RedisConfig {
 
@@ -30,6 +31,7 @@ public class RedisConfig {
      * @return Configured RedisTemplate
      */
     @Bean
+    @ConditionalOnMissingBean(name = "redisTemplate")
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
@@ -58,7 +60,8 @@ public class RedisConfig {
      * @param factory Redis connection factory
      * @return Configured CacheManager
      */
-    @Bean
+    @Bean(name = "aiIntegrationCacheManager")
+    @ConditionalOnMissingBean(CacheManager.class)
     public CacheManager cacheManager(RedisConnectionFactory factory) {
         // Default cache configuration
         RedisCacheConfiguration defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()

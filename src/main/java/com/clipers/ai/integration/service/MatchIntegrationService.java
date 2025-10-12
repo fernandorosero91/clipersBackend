@@ -5,6 +5,7 @@ import com.clipers.ai.integration.dto.FinalShortlistDTO;
 import com.clipers.clipers.entity.Job;
 import com.clipers.clipers.entity.JobMatch;
 import com.clipers.clipers.entity.User;
+import com.clipers.clipers.exception.ResourceNotFoundException;
 import com.clipers.clipers.repository.JobMatchRepository;
 import com.clipers.clipers.repository.JobRepository;
 import com.clipers.clipers.repository.UserRepository;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -59,12 +61,13 @@ public class MatchIntegrationService {
      * @param jobId The job ID
      * @return FinalShortlistDTO with the generated shortlist
      */
+    @Transactional
     public FinalShortlistDTO generateShortlist(String jobId) {
         logger.info("Generating shortlist for job: {}", jobId);
         
         // Get job from repository
         Job job = jobRepository.findById(jobId)
-                .orElseThrow(() -> new RuntimeException("Job not found: " + jobId));
+                .orElseThrow(() -> new ResourceNotFoundException("Job", jobId));
         
         // Get all candidates
         List<User> candidates = userRepository.findAll();
@@ -74,7 +77,12 @@ public class MatchIntegrationService {
         List<CandidateScoreDTO> candidateScores = candidates.stream()
                 .map(candidate -> evaluateCandidate(candidate, job))
                 .filter(Objects::nonNull)
-                .sorted((c1, c2) -> Double.compare(c2.getFinalScore(), c1.getFinalScore()))
+                .sorted((c1, c2) -> {
+                    // Handle null final scores by treating them as 0.0
+                    double score1 = c1.getFinalScore() != null ? c1.getFinalScore() : 0.0;
+                    double score2 = c2.getFinalScore() != null ? c2.getFinalScore() : 0.0;
+                    return Double.compare(score2, score1);
+                })
                 .collect(Collectors.toList());
         
         // Assign ranks and states
@@ -130,6 +138,7 @@ public class MatchIntegrationService {
      * Clears cache for a specific job
      * @param jobId The job ID
      */
+    @Transactional
     public void clearJobCache(String jobId) {
         logger.info("Clearing cache for job: {}", jobId);
         shortlistCacheService.clearJobCache(jobId);
@@ -138,6 +147,7 @@ public class MatchIntegrationService {
     /**
      * Clears all cache
      */
+    @Transactional
     public void clearAllCache() {
         logger.info("Clearing all cache");
         shortlistCacheService.clearAllCache();
@@ -149,7 +159,7 @@ public class MatchIntegrationService {
      * @param job The job to evaluate for
      * @return CandidateScoreDTO with evaluation results
      */
-    private CandidateScoreDTO evaluateCandidate(User candidate, Job job) {
+    public CandidateScoreDTO evaluateCandidate(User candidate, Job job) {
         logger.debug("Evaluating candidate: {} for job: {}", candidate.getId(), job.getId());
         
         // Get AI score (from existing job match or call external API)
@@ -229,10 +239,16 @@ public class MatchIntegrationService {
             CandidateScoreDTO candidate = candidates.get(i);
             candidate.setRank(i + 1);
             
+            // Handle null final scores
+            Double finalScore = candidate.getFinalScore();
+            if (finalScore == null) {
+                finalScore = 0.0;
+            }
+            
             // Assign state based on rank and score
-            if (i == 0 && candidate.getFinalScore() >= 0.8) {
+            if (i == 0 && finalScore >= 0.8) {
                 candidate.setState("PRESELECTED");
-            } else if (i < 3 && candidate.getFinalScore() >= 0.7) {
+            } else if (i < 3 && finalScore >= 0.7) {
                 candidate.setState("SELECTED");
             } else {
                 candidate.setState("REVIEW");

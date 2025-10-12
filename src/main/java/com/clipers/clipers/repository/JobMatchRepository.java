@@ -14,17 +14,23 @@ import java.util.Optional;
 @Repository
 public interface JobMatchRepository extends JpaRepository<JobMatch, String> {
     
-    List<JobMatch> findByUserId(String userId);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.user.id = :userId")
+    List<JobMatch> findByUserId(@Param("userId") String userId);
     
-    List<JobMatch> findByJobId(String jobId);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.job.id = :jobId")
+    List<JobMatch> findByJobId(@Param("jobId") String jobId);
     
-    Optional<JobMatch> findByUserIdAndJobId(String userId, String jobId);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.user.id = :userId AND jm.job.id = :jobId")
+    Optional<JobMatch> findByUserIdAndJobId(@Param("userId") String userId, @Param("jobId") String jobId);
     
-    JobMatch findByJobIdAndUserId(String jobId, String userId);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.job.id = :jobId AND jm.user.id = :userId")
+    JobMatch findByJobIdAndUserId(@Param("jobId") String jobId, @Param("userId") String userId);
     
-    Page<JobMatch> findByUserIdOrderByScoreDesc(String userId, Pageable pageable);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.user.id = :userId ORDER BY jm.score DESC")
+    Page<JobMatch> findByUserIdOrderByScoreDesc(@Param("userId") String userId, Pageable pageable);
     
-    Page<JobMatch> findByJobIdOrderByScoreDesc(String jobId, Pageable pageable);
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.job.id = :jobId ORDER BY jm.score DESC")
+    Page<JobMatch> findByJobIdOrderByScoreDesc(@Param("jobId") String jobId, Pageable pageable);
     
     @Query("SELECT jm FROM JobMatch jm WHERE jm.user.id = :userId AND jm.score >= :minScore ORDER BY jm.score DESC")
     List<JobMatch> findHighScoringMatchesForUser(@Param("userId") String userId, @Param("minScore") Double minScore);

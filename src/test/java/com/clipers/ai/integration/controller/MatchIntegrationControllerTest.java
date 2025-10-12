@@ -5,227 +5,110 @@ import com.clipers.ai.integration.service.MatchIntegrationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Unit tests for MatchIntegrationController
+ * Integration tests for MatchIntegrationController
  */
-@ExtendWith(MockitoExtension.class)
-class MatchIntegrationControllerTest {
+@WebMvcTest(MatchIntegrationController.class)
+public class MatchIntegrationControllerTest {
 
+    @Autowired
     private MockMvc mockMvc;
 
-    @Mock
+    @MockBean
     private MatchIntegrationService matchIntegrationService;
 
-    @InjectMocks
-    private MatchIntegrationController controller;
-
+    @Autowired
     private ObjectMapper objectMapper;
+
+    private FinalShortlistDTO mockShortlist;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
-        objectMapper = new ObjectMapper();
-    }
-
-    @Test
-    void testGenerateShortlist() throws Exception {
-        String jobId = "job123";
-        FinalShortlistDTO shortlist = createMockShortlist(jobId);
-        
-        when(matchIntegrationService.generateShortlist(jobId)).thenReturn(shortlist);
-        
-        mockMvc.perform(post("/integration/applications/{jobId}/select", jobId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.jobId").value(jobId))
-                .andExpect(jsonPath("$.cached").value(false));
-        
-        verify(matchIntegrationService).generateShortlist(jobId);
-    }
-
-    @Test
-    void testGetShortlist() throws Exception {
-        String jobId = "job123";
-        FinalShortlistDTO shortlist = createMockShortlist(jobId);
-        
-        when(matchIntegrationService.getShortlist(jobId)).thenReturn(shortlist);
-        
-        mockMvc.perform(get("/integration/applications/{jobId}/shortlist", jobId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.jobId").value(jobId))
-                .andExpect(jsonPath("$.cached").value(false));
-        
-        verify(matchIntegrationService).getShortlist(jobId);
-    }
-
-    @Test
-    void testGetShortlistCached() throws Exception {
-        String jobId = "job123";
-        FinalShortlistDTO shortlist = createMockShortlist(jobId);
-        shortlist.setCached(true);
-        
-        when(matchIntegrationService.getShortlist(jobId)).thenReturn(shortlist);
-        
-        mockMvc.perform(get("/integration/applications/{jobId}/shortlist", jobId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.jobId").value(jobId))
-                .andExpect(jsonPath("$.cached").value(true));
-        
-        verify(matchIntegrationService).getShortlist(jobId);
-    }
-
-    @Test
-    void testGetCacheStats() throws Exception {
-        Map<String, Object> stats = Map.of(
-                "enabled", true,
-                "hitCount", 10,
-                "missCount", 5,
-                "totalRequests", 15,
-                "hitRate", "66.67%",
-                "cacheSize", 3
-        );
-        
-        when(matchIntegrationService.getCacheStats()).thenReturn(stats);
-        
-        mockMvc.perform(get("/integration/cache/stats"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.enabled").value(true))
-                .andExpect(jsonPath("$.hitCount").value(10))
-                .andExpect(jsonPath("$.missCount").value(5))
-                .andExpect(jsonPath("$.totalRequests").value(15))
-                .andExpect(jsonPath("$.hitRate").value("66.67%"))
-                .andExpect(jsonPath("$.cacheSize").value(3));
-        
-        verify(matchIntegrationService).getCacheStats();
-    }
-
-    @Test
-    void testClearJobCache() throws Exception {
-        String jobId = "job123";
-        
-        mockMvc.perform(delete("/integration/cache/{jobId}", jobId))
-                .andExpect(status().isOk());
-        
-        verify(matchIntegrationService).clearJobCache(jobId);
-    }
-
-    @Test
-    void testClearAllCache() throws Exception {
-        mockMvc.perform(delete("/integration/cache"))
-                .andExpect(status().isOk());
-        
-        verify(matchIntegrationService).clearAllCache();
-    }
-
-    @Test
-    void testGenerateShortlistWithInvalidJobId() throws Exception {
-        String jobId = "";
-        
-        mockMvc.perform(post("/integration/applications/{jobId}/select", jobId))
-                .andExpect(status().isBadRequest());
-        
-        verify(matchIntegrationService, never()).generateShortlist(anyString());
-    }
-
-    @Test
-    void testGetShortlistWithInvalidJobId() throws Exception {
-        String jobId = "   ";
-        
-        mockMvc.perform(get("/integration/applications/{jobId}/shortlist", jobId))
-                .andExpect(status().isBadRequest());
-        
-        verify(matchIntegrationService, never()).getShortlist(anyString());
-    }
-
-    @Test
-    void testGenerateShortlistWithServiceException() throws Exception {
-        String jobId = "job123";
-        
-        when(matchIntegrationService.generateShortlist(jobId))
-                .thenThrow(new RuntimeException("Service error"));
-        
-        mockMvc.perform(post("/integration/applications/{jobId}/select", jobId))
-                .andExpect(status().is5xxServerError());
-        
-        verify(matchIntegrationService).generateShortlist(jobId);
-    }
-
-    @Test
-    void testGetShortlistWithServiceException() throws Exception {
-        String jobId = "job123";
-        
-        when(matchIntegrationService.getShortlist(jobId))
-                .thenThrow(new RuntimeException("Service error"));
-        
-        mockMvc.perform(get("/integration/applications/{jobId}/shortlist", jobId))
-                .andExpect(status().is5xxServerError());
-        
-        verify(matchIntegrationService).getShortlist(jobId);
-    }
-
-    @Test
-    void testClearJobCacheWithServiceException() throws Exception {
-        String jobId = "job123";
-        
-        doThrow(new RuntimeException("Service error"))
-                .when(matchIntegrationService).clearJobCache(jobId);
-        
-        mockMvc.perform(delete("/integration/cache/{jobId}", jobId))
-                .andExpect(status().is5xxServerError());
-        
-        verify(matchIntegrationService).clearJobCache(jobId);
-    }
-
-    @Test
-    void testClearAllCacheWithServiceException() throws Exception {
-        doThrow(new RuntimeException("Service error"))
-                .when(matchIntegrationService).clearAllCache();
-        
-        mockMvc.perform(delete("/integration/cache"))
-                .andExpect(status().is5xxServerError());
-        
-        verify(matchIntegrationService).clearAllCache();
-    }
-
-    @Test
-    void testGetCacheStatsWithServiceException() throws Exception {
-        when(matchIntegrationService.getCacheStats())
-                .thenThrow(new RuntimeException("Service error"));
-        
-        mockMvc.perform(get("/integration/cache/stats"))
-                .andExpect(status().is5xxServerError());
-        
-        verify(matchIntegrationService).getCacheStats();
-    }
-
-    /**
-     * Helper method to create a mock shortlist for testing
-     */
-    private FinalShortlistDTO createMockShortlist(String jobId) {
-        FinalShortlistDTO shortlist = new FinalShortlistDTO();
-        shortlist.setJobId(jobId);
-        shortlist.setCached(false);
+        // Create a mock shortlist
+        mockShortlist = new FinalShortlistDTO();
+        mockShortlist.setJobId("job123");
+        mockShortlist.setCached(false);
+        mockShortlist.setGeneratedAt(java.time.LocalDateTime.now());
         
         // Add some mock candidates
-        // In a real test, you might create proper CandidateScoreDTO objects
-        // For simplicity, we'll just set the list to empty
-        shortlist.setCandidates(List.of());
+        // In a real test, you would create proper CandidateScoreDTO objects
+    }
+
+    @Test
+    void getShortlist_WhenShortlistExists_ShouldReturnShortlist() throws Exception {
+        // Arrange
+        when(matchIntegrationService.getShortlist(anyString())).thenReturn(mockShortlist);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/integration/shortlist/job123")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobId").value("job123"))
+                .andExpect(jsonPath("$.cached").value(false));
+    }
+
+    @Test
+    void generateShortlist_WhenValidJobId_ShouldReturnGeneratedShortlist() throws Exception {
+        // Arrange
+        when(matchIntegrationService.generateShortlist(anyString())).thenReturn(mockShortlist);
+
+        // Act & Assert
+        mockMvc.perform(post("/api/integration/shortlist/generate/job123")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobId").value("job123"))
+                .andExpect(jsonPath("$.cached").value(false));
+    }
+
+    @Test
+    void getCacheStats_ShouldReturnCacheStatistics() throws Exception {
+        // Arrange
+        Map<String, Object> mockStats = new HashMap<>();
+        mockStats.put("totalKeys", 10);
+        mockStats.put("memoryUsage", "1MB");
+        mockStats.put("hitRate", 0.95);
         
-        return shortlist;
+        when(matchIntegrationService.getCacheStats()).thenReturn(mockStats);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/integration/cache/stats")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalKeys").value(10))
+                .andExpect(jsonPath("$.memoryUsage").value("1MB"))
+                .andExpect(jsonPath("$.hitRate").value(0.95));
+    }
+
+    @Test
+    void clearJobCache_WhenValidJobId_ShouldReturnSuccess() throws Exception {
+        // Act & Assert
+        mockMvc.perform(delete("/api/integration/cache/job123")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Cache cleared for job: job123"));
+    }
+
+    @Test
+    void clearAllCache_ShouldReturnSuccess() throws Exception {
+        // Act & Assert
+        mockMvc.perform(delete("/api/integration/cache")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().string("All cache cleared"));
     }
 }

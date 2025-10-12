@@ -68,4 +68,19 @@ public class JobMatch {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    // Convenience methods for testing
+    public void setJobId(String jobId) {
+        if (this.job == null) {
+            this.job = new Job();
+        }
+        this.job.setId(jobId);
+    }
+
+    public void setUserId(String userId) {
+        if (this.user == null) {
+            this.user = new User();
+        }
+        this.user.setId(userId);
+    }
 }

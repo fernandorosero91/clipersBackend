@@ -141,7 +141,8 @@ public class ScoreAggregator {
 
         // Check for null scores
         if (aiScore == null || atsScore == null || profileScore == null) {
-            logger().warn("One or more scores are null for candidate: {}", candidateScore.getCandidateId());
+            logger().warn("One or more scores are null for candidate: {}. Setting final score to 0.0", candidateScore.getCandidateId());
+            candidateScore.setFinalScore(0.0);
             return 0.0;
         }
 

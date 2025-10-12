@@ -3,7 +3,10 @@ package com.clipers.clipers;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(
+    scanBasePackages = {"com.clipers"},
+    nameGenerator = org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGenerator.class
+)
 public class ClipersApplication {
 
 	public static void main(String[] args) {

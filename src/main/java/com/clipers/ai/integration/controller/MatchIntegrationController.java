@@ -2,11 +2,14 @@ package com.clipers.ai.integration.controller;
 
 import com.clipers.ai.integration.dto.FinalShortlistDTO;
 import com.clipers.ai.integration.service.MatchIntegrationService;
+import com.clipers.clipers.exception.BusinessException;
+import com.clipers.clipers.exception.ResourceNotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,6 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/integration")
 @Tag(name = "AI + ATS Integration", description = "Endpoints for AI-powered candidate matching and shortlisting")
+@Validated
 public class MatchIntegrationController {
 
     private final MatchIntegrationService matchIntegrationService;
@@ -41,8 +45,14 @@ public class MatchIntegrationController {
             @Parameter(description = "ID of the job to generate shortlist for", required = true)
             @PathVariable String jobId) {
         
-        FinalShortlistDTO shortlist = matchIntegrationService.generateShortlist(jobId);
-        return ResponseEntity.ok(shortlist);
+        try {
+            FinalShortlistDTO shortlist = matchIntegrationService.generateShortlist(jobId);
+            return ResponseEntity.ok(shortlist);
+        } catch (ResourceNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Error generating shortlist for job: " + jobId, e);
+        }
     }
 
     /**
@@ -59,8 +69,14 @@ public class MatchIntegrationController {
             @Parameter(description = "ID of the job to retrieve shortlist for", required = true)
             @PathVariable String jobId) {
         
-        FinalShortlistDTO shortlist = matchIntegrationService.getShortlist(jobId);
-        return ResponseEntity.ok(shortlist);
+        try {
+            FinalShortlistDTO shortlist = matchIntegrationService.getShortlist(jobId);
+            return ResponseEntity.ok(shortlist);
+        } catch (ResourceNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Error retrieving shortlist for job: " + jobId, e);
+        }
     }
 
     /**
