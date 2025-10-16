@@ -1,8 +1,8 @@
-# Multi-stage build para optimizar el tamaño de la imagen
+# Multi-stage build para Spring Boot
 FROM openjdk:21-jdk-slim AS build
 
 # Instalar Maven
-RUN apt-get update && apt-get install -y maven
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 # Crear directorio de trabajo
 WORKDIR /app
@@ -20,7 +20,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Imagen de producción
-FROM openjdk:21-jdk-slim
+FROM openjdk:21-jre-slim
 
 # Crear usuario no-root para seguridad
 RUN addgroup --system spring && adduser --system spring --ingroup spring
@@ -41,7 +41,7 @@ USER spring:spring
 EXPOSE 8080
 
 # Variables de entorno por defecto
-ENV SPRING_PROFILES_ACTIVE=docker
+ENV SPRING_PROFILES_ACTIVE=coolify
 ENV JAVA_OPTS="-Xms512m -Xmx1024m"
 
 # Comando de inicio
