@@ -20,7 +20,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Imagen de producción
-FROM openjdk:21-jre-slim
+FROM openjdk:21-jdk-slim
 
 # Crear usuario no-root para seguridad
 RUN addgroup --system spring && adduser --system spring --ingroup spring
