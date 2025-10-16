@@ -34,28 +34,28 @@ public class VideoProcessingResponse {
 
     public static class Profile {
         @JsonProperty("nombre")
-        private String name;
+        private Object name;
 
         @JsonProperty("profesion")
-        private String profession;
+        private Object profession;
 
         @JsonProperty("experiencia")
-        private String experience;
+        private Object experience;
 
         @JsonProperty("educacion")
-        private String education;
+        private Object education;
 
         @JsonProperty("tecnologias")
-        private String technologies;
+        private Object technologies;
 
         @JsonProperty("idiomas")
-        private String languages;
+        private Object languages;
 
         @JsonProperty("logros")
-        private String achievements;
+        private Object achievements;
 
         @JsonProperty("habilidades_blandas")
-        private String softSkills;
+        private Object softSkills;
 
         public Profile() {}
 
@@ -72,28 +72,43 @@ public class VideoProcessingResponse {
         }
 
         // Getters and setters
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
+        public String getName() { return convertToString(name); }
+        public void setName(Object name) { this.name = name; }
 
-        public String getProfession() { return profession; }
-        public void setProfession(String profession) { this.profession = profession; }
+        public String getProfession() { return convertToString(profession); }
+        public void setProfession(Object profession) { this.profession = profession; }
 
-        public String getExperience() { return experience; }
-        public void setExperience(String experience) { this.experience = experience; }
+        public String getExperience() { return convertToString(experience); }
+        public void setExperience(Object experience) { this.experience = experience; }
 
-        public String getEducation() { return education; }
-        public void setEducation(String education) { this.education = education; }
+        public String getEducation() { return convertToString(education); }
+        public void setEducation(Object education) { this.education = education; }
 
-        public String getTechnologies() { return technologies; }
-        public void setTechnologies(String technologies) { this.technologies = technologies; }
+        public String getTechnologies() { return convertToString(technologies); }
+        public void setTechnologies(Object technologies) { this.technologies = technologies; }
 
-        public String getLanguages() { return languages; }
-        public void setLanguages(String languages) { this.languages = languages; }
+        public String getLanguages() { return convertToString(languages); }
+        public void setLanguages(Object languages) { this.languages = languages; }
 
-        public String getAchievements() { return achievements; }
-        public void setAchievements(String achievements) { this.achievements = achievements; }
+        public String getAchievements() { return convertToString(achievements); }
+        public void setAchievements(Object achievements) { this.achievements = achievements; }
 
-        public String getSoftSkills() { return softSkills; }
-        public void setSoftSkills(String softSkills) { this.softSkills = softSkills; }
+        public String getSoftSkills() { return convertToString(softSkills); }
+        public void setSoftSkills(Object softSkills) { this.softSkills = softSkills; }
+
+        private String convertToString(Object obj) {
+            if (obj == null) {
+                return "No especificado";
+            }
+            if (obj instanceof String) {
+                return (String) obj;
+            }
+            if (obj instanceof java.util.List) {
+                return String.join(", ", ((java.util.List<?>) obj).stream()
+                    .map(Object::toString)
+                    .toArray(String[]::new));
+            }
+            return obj.toString();
+        }
     }
 }

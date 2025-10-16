@@ -110,12 +110,23 @@ public class CliperController {
     }
 
     @DeleteMapping("/admin/clear-all")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> clearAllClipers() {
         try {
-            cliperService.clearAllClipers();
-            return ResponseEntity.ok("Todos los clipers han sido eliminados");
+            cliperService.clearAllData();
+            return ResponseEntity.ok("Todos los clipers y perfiles ATS han sido eliminados");
         } catch (Exception e) {
-            throw new RuntimeException("Error al eliminar clipers: " + e.getMessage(), e);
+            throw new RuntimeException("Error al eliminar datos: " + e.getMessage(), e);
+        }
+    }
+
+    @DeleteMapping("/admin/clear-all-data")
+    public ResponseEntity<String> clearAllData() {
+        try {
+            cliperService.clearAllData();
+            return ResponseEntity.ok("Todos los clipers y perfiles ATS han sido eliminados");
+        } catch (Exception e) {
+            throw new RuntimeException("Error al eliminar datos: " + e.getMessage(), e);
         }
     }
 

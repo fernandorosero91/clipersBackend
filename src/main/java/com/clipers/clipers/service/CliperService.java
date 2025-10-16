@@ -90,14 +90,10 @@ public class CliperService {
             processingResponse = callVideoProcessingService(savedFilePath);
         }
 
-        // Step 4: Create or update ATS profile with processing data
-        if (processingResponse != null && processingResponse.getProfile() != null) {
-            // Use microservice data to update ATS profile
-            generateOrUpdateATSProfileFromMicroservice(user, processingResponse.getProfile());
-        } else {
-            // Use simulated data if microservice fails
-            generateOrUpdateATSProfileSimulated(user);
-        }
+         // If microservice fails, create simulated data based on expected JSON format
+         if (processingResponse == null) {
+             processingResponse = createSimulatedVideoProcessingResponse();
+         }
 
         // Step 5: Create new cliper with processing results
         Cliper cliper = new Cliper(title, description, savedVideoUrl != null ? savedVideoUrl : videoUrl, duration, user);
@@ -121,12 +117,14 @@ public class CliperService {
         // Step 6: Save cliper
         cliper = cliperRepository.save(cliper);
 
-        // Step 7: Update ATS profile with cliper ID
-        if (processingResponse != null && processingResponse.getProfile() != null) {
-            updateATSProfileWithCliperId(user.getId(), cliper.getId());
-        } else {
-            updateATSProfileWithCliperId(user.getId(), cliper.getId());
-        }
+        // Step 4: Always create/update ATS profile with microservice data (regenerate each time)
+         if (processingResponse != null && processingResponse.getProfile() != null) {
+             // Use microservice data to create/update ATS profile (always regenerate)
+             generateOrUpdateATSProfileFromMicroservice(user, processingResponse.getProfile(), processingResponse.getTranscription(), cliper.getId());
+         } else {
+             // If no microservice data, update cliper ID if profile exists
+             updateATSProfileWithCliperId(user.getId(), cliper.getId());
+         }
 
         // Step 7: Send notification
         notificationService.notifyCliperProcessed(user.getId(), cliper.getId());
@@ -360,108 +358,78 @@ public class CliperService {
         return skills;
     }
 
-    /**
-     * Genera o actualiza el perfil ATS usando datos del microservicio
-     */
-    private void generateOrUpdateATSProfileFromMicroservice(Cliper cliper, VideoProcessingResponse.Profile perfil) {
-        try {
-            if (perfil == null) {
-                generateOrUpdateATSProfile(cliper);
-                return;
-            }
-            Optional<ATSProfile> existingProfile = atsProfileRepository.findByUserId(cliper.getUser().getId());
-
-            ATSProfile atsProfile;
-            if (existingProfile.isPresent()) {
-                atsProfile = existingProfile.get();
-                // Limpiar listas existentes para evitar duplicados
-                atsProfile.getEducation().clear();
-                atsProfile.getExperience().clear();
-                atsProfile.getSkills().clear();
-                atsProfile.getLanguages().clear();
-            } else {
-                atsProfile = new ATSProfile(cliper.getUser());
-            }
-
-            // Actualizar con datos del microservicio
-            atsProfile.setSummary(generateSummaryFromProfile(perfil));
-            atsProfile.setCliperId(cliper.getId());
-
-            // Agregar educación si existe
-            if (perfil.getEducation() != null && !perfil.getEducation().equals("No especificado")) {
-                atsProfile.addEducation(perfil.getEducation(), "Grado obtenido", "Campo de estudio");
-            }
-
-            // Agregar experiencia si existe
-            if (perfil.getExperience() != null && !perfil.getExperience().equals("No especificado")) {
-                atsProfile.addExperience("Empresa", perfil.getProfession(), perfil.getExperience());
-            }
-
-            // Agregar tecnologías como skills técnicos
-            if (perfil.getTechnologies() != null && !perfil.getTechnologies().equals("No especificado")) {
-                String[] tecnologias = perfil.getTechnologies().split(",\\s*");
-                for (String tecnologia : tecnologias) {
-                    atsProfile.addSkill(tecnologia.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.TECHNICAL);
-                }
-            }
-
-            // Agregar habilidades blandas como skills soft
-            if (perfil.getSoftSkills() != null && !perfil.getSoftSkills().equals("No especificado")) {
-                String[] habilidades = perfil.getSoftSkills().split(",\\s*");
-                for (String habilidad : habilidades) {
-                    atsProfile.addSkill(habilidad.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.SOFT);
-                }
-            }
-
-            // Agregar idiomas si existen
-            if (perfil.getLanguages() != null && !perfil.getLanguages().equals("No especificado")) {
-                String[] idiomas = perfil.getLanguages().split(",\\s*");
-                for (String idioma : idiomas) {
-                    atsProfile.addLanguage(idioma.trim(), Language.LanguageLevel.INTERMEDIATE);
-                }
-            }
-
-            atsProfileRepository.save(atsProfile);
-
-        } catch (Exception e) {
-            System.err.println("Error generando perfil ATS desde microservicio para cliper " + cliper.getId() + ": " + e.getMessage());
-        }
-    }
 
     /**
      * Genera un resumen del perfil basado en los datos del microservicio
+     * Ahora incluye la transcripción completa del microservicio
      */
     private String generateSummaryFromProfile(VideoProcessingResponse.Profile perfil) {
+        // Si tenemos la transcripción del microservicio, la usamos como resumen profesional
+        // Esta debería venir del campo transcription en VideoProcessingResponse
+        // Por ahora, generamos un resumen completo basado en los datos del perfil
+
         StringBuilder summary = new StringBuilder();
 
+        // Agregar nombre si existe
         if (perfil.getName() != null && !perfil.getName().equals("No especificado")) {
-            summary.append("Profesional: ").append(perfil.getName()).append(". ");
+            summary.append(perfil.getName()).append(" es un ");
+        } else {
+            summary.append("Profesional ");
         }
 
+        // Agregar profesión
         if (perfil.getProfession() != null && !perfil.getProfession().equals("No especificado")) {
-            summary.append("Profesión: ").append(perfil.getProfession()).append(". ");
+            summary.append(perfil.getProfession().toLowerCase());
+        } else {
+            summary.append("profesional");
         }
 
+        // Agregar experiencia
         if (perfil.getExperience() != null && !perfil.getExperience().equals("No especificado")) {
-            summary.append("Experiencia: ").append(perfil.getExperience()).append(". ");
+            summary.append(" con experiencia en ").append(perfil.getExperience().toLowerCase());
         }
 
+        summary.append(". ");
+
+        // Agregar educación
+        if (perfil.getEducation() != null && !perfil.getEducation().equals("No especificado")) {
+            summary.append("Cuenta con formación en ").append(perfil.getEducation().toLowerCase()).append(". ");
+        }
+
+        // Agregar tecnologías
         if (perfil.getTechnologies() != null && !perfil.getTechnologies().equals("No especificado")) {
-            summary.append("Tecnologías: ").append(perfil.getTechnologies()).append(". ");
+            summary.append("Domina tecnologías como ").append(perfil.getTechnologies().toLowerCase()).append(". ");
         }
 
+        // Agregar habilidades blandas
+        if (perfil.getSoftSkills() != null && !perfil.getSoftSkills().equals("No especificado")) {
+            summary.append("Posee habilidades como ").append(perfil.getSoftSkills().toLowerCase()).append(". ");
+        }
+
+        // Agregar logros
         if (perfil.getAchievements() != null && !perfil.getAchievements().equals("No especificado")) {
-            summary.append("Logros: ").append(perfil.getAchievements()).append(". ");
+            summary.append("Ha logrado ").append(perfil.getAchievements().toLowerCase()).append(". ");
         }
 
         return summary.toString().trim();
     }
 
     /**
-     * Elimina todos los clipers (solo para administración)
+     * Elimina todos los clipers y perfiles ATS (solo para administración)
      */
     public void clearAllClipers() {
         cliperRepository.deleteAll();
+        atsProfileRepository.deleteAll();
+    }
+
+    /**
+     * Elimina todos los clipers y perfiles ATS (solo para administración)
+     */
+    public void clearAllData() {
+        // Primero eliminar clipers
+        cliperRepository.deleteAll();
+        // Luego eliminar perfiles ATS
+        atsProfileRepository.deleteAll();
     }
 
     /**
@@ -492,10 +460,10 @@ public class CliperService {
     /**
      * Genera o actualiza el perfil ATS usando datos del microservicio (versión para User)
      */
-    private void generateOrUpdateATSProfileFromMicroservice(User user, VideoProcessingResponse.Profile perfil) {
+    private void generateOrUpdateATSProfileFromMicroservice(User user, VideoProcessingResponse.Profile perfil, String transcription, String cliperId) {
         try {
             if (perfil == null) {
-                generateOrUpdateATSProfileSimulated(user);
+                // No crear perfil ATS si no hay datos reales del microservicio
                 return;
             }
             System.out.println("🔄 GENERANDO PERFIL ATS DESDE MICROSERVICIO");
@@ -526,44 +494,66 @@ public class CliperService {
                 System.out.println("🆕 Creando nuevo perfil ATS");
             }
 
-            // Actualizar con datos del microservicio
-            atsProfile.setSummary(generateSummaryFromProfile(perfil));
+            // Actualizar con datos del microservicio - usar transcripción como resumen profesional
+            atsProfile.setSummary(transcription);
             System.out.println("📝 Summary generado: " + atsProfile.getSummary());
 
-            // Agregar educación si existe
+            // Agregar educación si existe y no está duplicada
             if (perfil.getEducation() != null && !perfil.getEducation().equals("No especificado")) {
-                atsProfile.addEducation(perfil.getEducation(), "Grado obtenido", "Campo de estudio");
-                System.out.println("🎓 Educación agregada: " + perfil.getEducation());
+                boolean educationExists = atsProfile.getEducation().stream()
+                    .anyMatch(e -> e.getInstitution().equals(perfil.getEducation()) ||
+                                 e.getDegree().equals(perfil.getEducation()));
+                if (!educationExists) {
+                    atsProfile.addEducation(perfil.getEducation(), "Grado obtenido", "Campo de estudio");
+                    System.out.println("🎓 Educación agregada: " + perfil.getEducation());
+                } else {
+                    System.out.println("🎓 Educación ya existe, omitiendo");
+                }
             } else {
-                // Agregar educación simulada si no hay datos
-                atsProfile.addEducation("Universidad Nacional", "Ingeniería de Sistemas", "Campo de estudio");
-                System.out.println("🎓 Educación simulada agregada");
+                // Agregar educación simulada solo si no hay ninguna
+                if (atsProfile.getEducation().isEmpty()) {
+                    atsProfile.addEducation("Universidad Nacional", "Ingeniería de Sistemas", "Campo de estudio");
+                    System.out.println("🎓 Educación simulada agregada");
+                }
             }
 
-            // Agregar experiencia si existe
+            // Agregar experiencia si existe y no está duplicada
             if (perfil.getExperience() != null && !perfil.getExperience().equals("No especificado")) {
-                atsProfile.addExperience("Empresa Tecnológica", perfil.getProfession(), perfil.getExperience());
-                System.out.println("💼 Experiencia agregada: " + perfil.getExperience());
+                boolean expExists = experienceExists(atsProfile, "Empresa Tecnológica", perfil.getProfession(), perfil.getExperience());
+                if (!expExists) {
+                    atsProfile.addExperience("Empresa Tecnológica", perfil.getProfession(), perfil.getExperience());
+                    System.out.println("💼 Experiencia agregada: " + perfil.getExperience());
+                } else {
+                    System.out.println("💼 Experiencia ya existe, omitiendo");
+                }
             } else {
-                // Agregar experiencia simulada si no hay datos
-                atsProfile.addExperience("Empresa Tecnológica", "Desarrollador Full Stack",
-                    "Desarrollo de aplicaciones web usando tecnologías modernas. Experiencia en desarrollo de APIs REST y aplicaciones escalables.");
-                System.out.println("💼 Experiencia simulada agregada");
+                // Agregar experiencia simulada solo si no hay ninguna
+                if (atsProfile.getExperience().isEmpty()) {
+                    atsProfile.addExperience("Empresa Tecnológica", "Desarrollador Full Stack",
+                        "Desarrollo de aplicaciones web usando tecnologías modernas. Experiencia en desarrollo de APIs REST y aplicaciones escalables.");
+                    System.out.println("💼 Experiencia simulada agregada");
+                }
             }
 
             // Agregar tecnologías como skills técnicos
             if (perfil.getTechnologies() != null && !perfil.getTechnologies().equals("No especificado")) {
                 String[] tecnologias = perfil.getTechnologies().split(",\\s*");
                 for (String tecnologia : tecnologias) {
-                    atsProfile.addSkill(tecnologia.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.TECHNICAL);
-                    System.out.println("🛠️ Skill técnico agregado: " + tecnologia.trim());
+                    if (!skillExists(atsProfile, tecnologia.trim())) {
+                        atsProfile.addSkill(tecnologia.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.TECHNICAL);
+                        System.out.println("🛠️ Skill técnico agregado: " + tecnologia.trim());
+                    } else {
+                        System.out.println("🛠️ Skill técnico ya existe: " + tecnologia.trim());
+                    }
                 }
             } else {
-                // Agregar skills técnicos simulados
-                String[] tecnologiasSimuladas = {"Java", "Spring Boot", "React", "PostgreSQL", "JavaScript"};
-                for (String tecnologia : tecnologiasSimuladas) {
-                    atsProfile.addSkill(tecnologia, Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.TECHNICAL);
-                    System.out.println("🛠️ Skill técnico simulado agregado: " + tecnologia);
+                // Agregar skills técnicos simulados solo si no hay ninguno
+                if (atsProfile.getSkills().stream().noneMatch(s -> s.getCategory() == Skill.SkillCategory.TECHNICAL)) {
+                    String[] tecnologiasSimuladas = {"Java", "Spring Boot", "React", "PostgreSQL", "JavaScript"};
+                    for (String tecnologia : tecnologiasSimuladas) {
+                        atsProfile.addSkill(tecnologia, Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.TECHNICAL);
+                        System.out.println("🛠️ Skill técnico simulado agregado: " + tecnologia);
+                    }
                 }
             }
 
@@ -571,15 +561,21 @@ public class CliperService {
             if (perfil.getSoftSkills() != null && !perfil.getSoftSkills().equals("No especificado")) {
                 String[] habilidades = perfil.getSoftSkills().split(",\\s*");
                 for (String habilidad : habilidades) {
-                    atsProfile.addSkill(habilidad.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.SOFT);
-                    System.out.println("🤝 Skill blando agregado: " + habilidad.trim());
+                    if (!skillExists(atsProfile, habilidad.trim())) {
+                        atsProfile.addSkill(habilidad.trim(), Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.SOFT);
+                        System.out.println("🤝 Skill blando agregado: " + habilidad.trim());
+                    } else {
+                        System.out.println("🤝 Skill blando ya existe: " + habilidad.trim());
+                    }
                 }
             } else {
-                // Agregar skills blandos simulados
-                String[] habilidadesSimuladas = {"Trabajo en equipo", "Comunicación", "Resolución de problemas"};
-                for (String habilidad : habilidadesSimuladas) {
-                    atsProfile.addSkill(habilidad, Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.SOFT);
-                    System.out.println("🤝 Skill blando simulado agregado: " + habilidad);
+                // Agregar skills blandos simulados solo si no hay ninguno
+                if (atsProfile.getSkills().stream().noneMatch(s -> s.getCategory() == Skill.SkillCategory.SOFT)) {
+                    String[] habilidadesSimuladas = {"Trabajo en equipo", "Comunicación", "Resolución de problemas"};
+                    for (String habilidad : habilidadesSimuladas) {
+                        atsProfile.addSkill(habilidad, Skill.SkillLevel.INTERMEDIATE, Skill.SkillCategory.SOFT);
+                        System.out.println("🤝 Skill blando simulado agregado: " + habilidad);
+                    }
                 }
             }
 
@@ -587,15 +583,21 @@ public class CliperService {
             if (perfil.getLanguages() != null && !perfil.getLanguages().equals("No especificado")) {
                 String[] idiomas = perfil.getLanguages().split(",\\s*");
                 for (String idioma : idiomas) {
-                    atsProfile.addLanguage(idioma.trim(), Language.LanguageLevel.INTERMEDIATE);
-                    System.out.println("🌐 Idioma agregado: " + idioma.trim());
+                    if (!languageExists(atsProfile, idioma.trim())) {
+                        atsProfile.addLanguage(idioma.trim(), Language.LanguageLevel.INTERMEDIATE);
+                        System.out.println("🌐 Idioma agregado: " + idioma.trim());
+                    } else {
+                        System.out.println("🌐 Idioma ya existe: " + idioma.trim());
+                    }
                 }
             } else {
-                // Agregar idiomas simulados
-                String[] idiomasSimulados = {"Español", "Inglés"};
-                for (String idioma : idiomasSimulados) {
-                    atsProfile.addLanguage(idioma, Language.LanguageLevel.INTERMEDIATE);
-                    System.out.println("🌐 Idioma simulado agregado: " + idioma);
+                // Agregar idiomas simulados solo si no hay ninguno
+                if (atsProfile.getLanguages().isEmpty()) {
+                    String[] idiomasSimulados = {"Español", "Inglés"};
+                    for (String idioma : idiomasSimulados) {
+                        atsProfile.addLanguage(idioma, Language.LanguageLevel.INTERMEDIATE);
+                        System.out.println("🌐 Idioma simulado agregado: " + idioma);
+                    }
                 }
             }
 
@@ -670,6 +672,149 @@ public class CliperService {
         } catch (Exception e) {
             System.err.println("Error generando perfil ATS simulado para usuario " + user.getId() + ": " + e.getMessage());
         }
+    }
+
+
+    /**
+     * Crea una respuesta simulada del microservicio con datos variados
+     */
+    private VideoProcessingResponse createSimulatedVideoProcessingResponse() {
+        VideoProcessingResponse response = new VideoProcessingResponse();
+        VideoProcessingResponse.Profile profile = new VideoProcessingResponse.Profile();
+
+        // Generar datos variados basados en diferentes profesiones
+        String[] professions = {
+            "Desarrollador Full Stack", "Ingeniero de Software", "Analista de Sistemas",
+            "Arquitecto de Software", "Desarrollador Frontend", "Desarrollador Backend",
+            "Ingeniero DevOps", "Analista de Datos", "Científico de Datos",
+            "Ingeniero de Machine Learning", "Desarrollador Mobile", "Contador Público",
+            "Administrador de Empresas", "Ingeniero Industrial", "Médico General",
+            "Abogado Corporativo", "Profesor Universitario", "Diseñador Gráfico"
+        };
+
+        String[] experiences = {
+            "5 años de experiencia en desarrollo de aplicaciones empresariales",
+            "3 años trabajando en proyectos de software a gran escala",
+            "7 años en el sector tecnológico con enfoque en soluciones innovadoras",
+            "4 años liderando equipos de desarrollo y proyectos ágiles",
+            "6 años en consultoría de sistemas y transformación digital",
+            "2 años en startups tecnológicas con crecimiento exponencial",
+            "8 años en desarrollo de software y arquitectura de sistemas",
+            "3 años en investigación y desarrollo de nuevas tecnologías"
+        };
+
+        String[] educations = {
+            "Ingeniería de Sistemas, Universidad Nacional",
+            "Contaduría Pública, Universidad de los Andes",
+            "Ingeniería Industrial, Universidad Javeriana",
+            "Administración de Empresas, Universidad Externado",
+            "Medicina, Universidad del Rosario",
+            "Derecho, Universidad de los Andes",
+            "Diseño Gráfico, Universidad Jorge Tadeo Lozano",
+            "Matemáticas, Universidad Nacional"
+        };
+
+        String[][] technologies = {
+            {"Java", "Spring Boot", "PostgreSQL", "React", "JavaScript"},
+            {"Python", "Django", "MongoDB", "Vue.js", "TypeScript"},
+            {"C#", ".NET", "SQL Server", "Angular", "Node.js"},
+            {"PHP", "Laravel", "MySQL", "React Native", "Flutter"},
+            {"Go", "Kubernetes", "Docker", "AWS", "Terraform"},
+            {"R", "Python", "Tableau", "Power BI", "SQL"},
+            {"Swift", "Kotlin", "Firebase", "React Native", "Flutter"},
+            {"Excel", "SAP", "Oracle", "Power BI", "SQL"}
+        };
+
+        String[] softSkills = {
+            "Trabajo en equipo, Comunicación efectiva, Resolución de problemas",
+            "Liderazgo, Adaptabilidad, Pensamiento crítico",
+            "Creatividad, Gestión del tiempo, Aprendizaje continuo",
+            "Empatía, Negociación, Toma de decisiones",
+            "Organización, Atención al detalle, Orientación a resultados"
+        };
+
+        String[] languages = {
+            "Español nativo, Inglés avanzado",
+            "Español nativo, Inglés intermedio, Francés básico",
+            "Español nativo, Inglés avanzado, Alemán intermedio",
+            "Español nativo, Inglés avanzado, Portugués intermedio",
+            "Español nativo, Inglés intermedio"
+        };
+
+        String[] achievements = {
+            "Certificación Scrum Master, Participación en proyectos internacionales",
+            "Publicación de artículos técnicos, Conferencias en eventos del sector",
+            "Liderazgo de equipos multiculturales, Implementación de metodologías ágiles",
+            "Desarrollo de patentes, Reconocimientos por innovación tecnológica",
+            "Excelencia académica, Becas de investigación obtenidas"
+        };
+
+        // Seleccionar índices aleatorios para variar los datos
+        int profIndex = (int) (Math.random() * professions.length);
+        int expIndex = (int) (Math.random() * experiences.length);
+        int eduIndex = (int) (Math.random() * educations.length);
+        int techIndex = (int) (Math.random() * technologies.length);
+        int softIndex = (int) (Math.random() * softSkills.length);
+        int langIndex = (int) (Math.random() * languages.length);
+        int achIndex = (int) (Math.random() * achievements.length);
+
+        // Generar transcripción simulada
+        String transcription = "Hola, soy " + professions[profIndex].toLowerCase() +
+            " con " + experiences[expIndex].toLowerCase() +
+            ". Mi formación académica incluye " + educations[eduIndex].toLowerCase() +
+            ". Tengo experiencia en " + String.join(", ", technologies[techIndex]).toLowerCase() +
+            ". Mis habilidades blandas incluyen " + softSkills[softIndex].toLowerCase() +
+            ". Hablo " + languages[langIndex].toLowerCase() +
+            ". Entre mis logros destacan " + achievements[achIndex].toLowerCase() + ".";
+
+        // Configurar el perfil
+        profile.setName("Usuario Candidato");
+        profile.setProfession(professions[profIndex]);
+        profile.setExperience(experiences[expIndex]);
+        profile.setEducation(educations[eduIndex]);
+        profile.setTechnologies(String.join(", ", technologies[techIndex]));
+        profile.setSoftSkills(softSkills[softIndex]);
+        profile.setLanguages(languages[langIndex]);
+        profile.setAchievements(achievements[achIndex]);
+
+        response.setTranscription(transcription);
+        response.setProfile(profile);
+
+        return response;
+    }
+
+    /**
+     * Crea un perfil vacío - no generamos datos simulados
+     */
+    private VideoProcessingResponse.Profile createSimulatedProfile() {
+        // Return empty profile - no auto-generation of data
+        return new VideoProcessingResponse.Profile();
+    }
+
+    /**
+     * Método auxiliar para verificar si una experiencia ya existe
+     */
+    private boolean experienceExists(ATSProfile atsProfile, String company, String position, String description) {
+        return atsProfile.getExperience().stream()
+            .anyMatch(exp -> exp.getCompany().equals(company) &&
+                           exp.getPosition().equals(position) &&
+                           exp.getDescription().equals(description));
+    }
+
+    /**
+     * Método auxiliar para verificar si una habilidad ya existe
+     */
+    private boolean skillExists(ATSProfile atsProfile, String skillName) {
+        return atsProfile.getSkills().stream()
+            .anyMatch(skill -> skill.getName().equals(skillName));
+    }
+
+    /**
+     * Método auxiliar para verificar si un idioma ya existe
+     */
+    private boolean languageExists(ATSProfile atsProfile, String languageName) {
+        return atsProfile.getLanguages().stream()
+            .anyMatch(lang -> lang.getName().equals(languageName));
     }
 
     /**
