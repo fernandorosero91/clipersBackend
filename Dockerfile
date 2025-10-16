@@ -25,11 +25,15 @@ FROM openjdk:21-jdk-slim
 # Crear usuario no-root para seguridad
 RUN addgroup --system spring && adduser --system spring --ingroup spring
 
-# Crear directorio de la aplicación
+# Crear directorio de la aplicación y carpetas de uploads
 WORKDIR /app
 
-# Crear directorio para uploads
-RUN mkdir -p /app/uploads && chown -R spring:spring /app
+# Crear directorio para uploads con subcarpetas necesarias
+RUN mkdir -p /app/uploads && \
+    mkdir -p /app/uploads/images && \
+    mkdir -p /app/uploads/videos && \
+    mkdir -p /app/uploads/thumbnails && \
+    chown -R spring:spring /app
 
 # Copiar JAR desde la etapa de build
 COPY --from=build /app/target/*.jar app.jar
