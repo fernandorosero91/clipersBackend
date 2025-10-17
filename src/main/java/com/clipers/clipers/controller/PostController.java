@@ -99,7 +99,7 @@ public class PostController {
             Files.copy(file.getInputStream(), filePath);
 
             // Crear URL completa con el dominio del backend
-            String baseUrl = "http://localhost:8080";
+            String baseUrl = "https://backend.sufactura.store/:8080";
             String imageUrl = baseUrl + "/uploads/images/" + filename;
 
             Map<String, String> response = new HashMap<>();
