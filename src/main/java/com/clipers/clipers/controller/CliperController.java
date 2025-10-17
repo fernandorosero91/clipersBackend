@@ -265,7 +265,7 @@ public class CliperController {
             Files.copy(videoFile.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
             // Devolver URL completa para que el frontend pueda acceder
-            return "http://localhost:8080/uploads/videos/" + fileName;
+            return "https://backend.sufactura.store/:8080/uploads/videos/" + fileName;
         } catch (IOException e) {
             throw new RuntimeException("Error al guardar el archivo de video: " + e.getMessage());
         }
