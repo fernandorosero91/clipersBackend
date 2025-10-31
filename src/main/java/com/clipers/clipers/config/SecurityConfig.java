@@ -68,6 +68,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/posts/public/**").permitAll()
                 .requestMatchers("/uploads/videos/**").permitAll()
                 .requestMatchers("/uploads/images/**").permitAll()
+                .requestMatchers("/uploads/avatars/**").permitAll()
+                .requestMatchers("/uploads/logos/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/").permitAll()
