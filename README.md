@@ -103,6 +103,12 @@ src/main/java/com/clipers/clipers/
 - `GET /api/jobs/search` - Buscar empleos
 - `GET /api/jobs/filter` - Filtrar empleos
 - `GET /api/jobs/matches/user/{userId}` - Matches de usuario
+ - `POST /api/jobs/{jobId}/apply` - Aplicar a empleo (solo candidatos)
+ - `GET /api/jobs/{jobId}/applicants` - Listar postulantes (solo empresa propietaria)
+ - `GET /api/jobs/{jobId}/applicants/ranked` - Ranking IA de postulantes (solo empresa propietaria)
+
+### Aplicaciones
+- `GET /api/applications/candidates/{candidateId}/applications` - Listar aplicaciones del candidato (solo el propio candidato o admin)
 
 ## 🐳 Despliegue con Docker
 
