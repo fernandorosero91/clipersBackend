@@ -16,6 +16,9 @@ import java.util.stream.Collectors;
 /**
  * Servicio que implementa Strategy Pattern implícitamente
  * para diferentes algoritmos de matching candidatos ↔ vacantes
+ * 
+ * NOTA: Este servicio NO maneja la extracción de videos (CliperService)
+ * Solo maneja Jobs y Matching con IA (MicroSelectIA)
  */
 @Service
 @Transactional
@@ -26,18 +29,21 @@ public class JobService {
     private final UserRepository userRepository;
     private final JobMatchRepository jobMatchRepository;
     private final NotificationService notificationService;
+    private final AIMatchingService aiMatchingService;
 
     @Autowired
     public JobService(JobRepository jobRepository,
                      CompanyRepository companyRepository,
                      UserRepository userRepository,
                      JobMatchRepository jobMatchRepository,
-                     NotificationService notificationService) {
+                     NotificationService notificationService,
+                     AIMatchingService aiMatchingService) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.jobMatchRepository = jobMatchRepository;
         this.notificationService = notificationService;
+        this.aiMatchingService = aiMatchingService;
     }
 
     public Job createJob(String companyUserId, String title, String description, 
@@ -64,11 +70,29 @@ public class JobService {
     /**
      * Strategy Pattern implementado implícitamente
      * Aplica diferentes estrategias de matching según el contexto
+     * 
+     * ACTUALIZADO: Ahora intenta usar IA (MicroSelectIA) primero
+     * Si falla, usa algoritmo local como fallback
+     * 
+     * NO CONFUNDIR: Esta integración es con MicroSelectIA (matching)
+     * NO con la API de extracción de videos (CliperService)
      */
     private void performAutomaticMatching(Job job) {
         // En producción, esto se ejecutaría de forma asíncrona
         new Thread(() -> {
             try {
+                // OPCIÓN 1: Intentar matching con IA (MicroSelectIA)
+                try {
+                    System.out.println("🤖 Intentando matching con IA (MicroSelectIA)...");
+                    aiMatchingService.processJobMatchingWithAI(job.getId());
+                    System.out.println("✅ Matching con IA completado exitosamente");
+                    return; // Si funciona, terminar aquí
+                } catch (Exception aiError) {
+                    System.err.println("⚠️ Error en IA, usando algoritmo local como fallback: " + aiError.getMessage());
+                }
+                
+                // OPCIÓN 2: Fallback - Algoritmo local (si la IA falla)
+                System.out.println("📊 Ejecutando matching con algoritmo local...");
                 List<User> candidates = userRepository.findCandidatesWithATSProfile();
                 
                 for (User candidate : candidates) {
@@ -90,8 +114,9 @@ public class JobService {
                         }
                     }
                 }
+                System.out.println("✅ Matching local completado");
             } catch (Exception e) {
-                System.err.println("Error en matching automático para job " + job.getId() + ": " + e.getMessage());
+                System.err.println("❌ Error en matching automático para job " + job.getId() + ": " + e.getMessage());
             }
         }).start();
     }

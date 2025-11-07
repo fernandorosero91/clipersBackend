@@ -32,4 +32,8 @@ public interface JobMatchRepository extends JpaRepository<JobMatch, String> {
     
     @Query("SELECT AVG(jm.score) FROM JobMatch jm WHERE jm.user.id = :userId")
     Double getAverageScoreForUser(@Param("userId") String userId);
+    
+    // Query para obtener matches ordenados por ranking de IA (1 = mejor)
+    @Query("SELECT jm FROM JobMatch jm WHERE jm.job.id = :jobId AND jm.aiRank IS NOT NULL ORDER BY jm.aiRank ASC")
+    List<JobMatch> findByJobIdOrderedByAIRank(@Param("jobId") String jobId);
 }

@@ -2,10 +2,13 @@ package com.clipers.clipers.controller;
 
 import com.clipers.clipers.dto.UserDTO;
 import com.clipers.clipers.dto.JobDTO;
+import com.clipers.clipers.dto.matching.BatchMatchResponseDTO;
 import com.clipers.clipers.entity.Job;
 import com.clipers.clipers.entity.JobMatch;
+import com.clipers.clipers.repository.JobMatchRepository;
 import com.clipers.clipers.service.AuthService;
 import com.clipers.clipers.service.JobService;
+import com.clipers.clipers.service.AIMatchingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +24,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Controller para Jobs
+ * IMPORTANTE: NO maneja extracción de videos (CliperController)
+ * Solo maneja Jobs y Matching con IA (MicroSelectIA)
+ */
 @RestController
 @RequestMapping("/api/jobs")
 @CrossOrigin(origins = "*")
@@ -28,11 +36,18 @@ public class JobController {
 
     private final JobService jobService;
     private final AuthService authService;
+    private final AIMatchingService aiMatchingService;
+    private final JobMatchRepository jobMatchRepository;
 
     @Autowired
-    public JobController(JobService jobService, AuthService authService) {
+    public JobController(JobService jobService, 
+                        AuthService authService,
+                        AIMatchingService aiMatchingService,
+                        JobMatchRepository jobMatchRepository) {
         this.jobService = jobService;
         this.authService = authService;
+        this.aiMatchingService = aiMatchingService;
+        this.jobMatchRepository = jobMatchRepository;
     }
 
     @PostMapping
@@ -235,6 +250,43 @@ public class JobController {
     public ResponseEntity<List<String>> getJobLocations() {
         List<String> locations = jobService.getAllJobLocations();
         return ResponseEntity.ok(locations);
+    }
+
+    // ========== NUEVOS ENDPOINTS PARA INTEGRACIÓN CON IA (MicroSelectIA) ==========
+    
+    /**
+     * Reprocesar matches de un job con la API de IA
+     * Endpoint: POST /api/jobs/{jobId}/matches/reprocess-with-ai
+     * 
+     * IMPORTANTE: Llama a MicroSelectIA (matching), NO a la API de videos
+     */
+    @PostMapping("/{jobId}/matches/reprocess-with-ai")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<BatchMatchResponseDTO> reprocessMatchesWithAI(@PathVariable String jobId) {
+        try {
+            System.out.println("🤖 Reprocesando matches con IA para job: " + jobId);
+            BatchMatchResponseDTO response = aiMatchingService.processJobMatchingWithAI(jobId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al reprocesar matches con IA: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Obtener matches ordenados por ranking de IA
+     * Endpoint: GET /api/jobs/{jobId}/matches/ai-ranked
+     * 
+     * Retorna candidatos ordenados por aiRank (1 = mejor)
+     */
+    @GetMapping("/{jobId}/matches/ai-ranked")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<List<JobMatch>> getAIRankedMatches(@PathVariable String jobId) {
+        try {
+            List<JobMatch> matches = jobMatchRepository.findByJobIdOrderedByAIRank(jobId);
+            return ResponseEntity.ok(matches);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener matches rankeados por IA: " + e.getMessage(), e);
+        }
     }
 
     private String getCurrentUserId() {

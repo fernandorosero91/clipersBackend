@@ -1,5 +1,6 @@
 version: '3.8'
 
+# ...existing code...
 services:
   postgres:
     image: postgres:15
@@ -9,7 +10,7 @@ services:
       POSTGRES_USER: clipers_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clipers_password}
     ports:
-      - "5434:5432"
+      - "5434:5432"    # <-- host 5434 -> container 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,7 +28,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: coolify
       SERVER_PORT: 8080
-      DATABASE_URL: jdbc:postgresql://postgres:5432/clipers_db
+      DATABASE_URL: jdbc:postgresql://postgres:5432/clipers_db   # <-- conectar al puerto interno 5432
       DATABASE_USERNAME: clipers_user
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-clipers_password}
       JWT_SECRET: ${JWT_SECRET:-mySecretKey123456789012345678901234567890123456789012345678901234567890}
@@ -43,6 +44,7 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+# ...existing code...
 
 volumes:
   postgres_data:
