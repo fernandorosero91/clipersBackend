@@ -3,9 +3,13 @@ package com.clipers.clipers.controller;
 import com.clipers.clipers.dto.UserDTO;
 import com.clipers.clipers.dto.JobDTO;
 import com.clipers.clipers.entity.Job;
+import com.clipers.clipers.entity.JobApplication;
 import com.clipers.clipers.entity.JobMatch;
 import com.clipers.clipers.service.AuthService;
 import com.clipers.clipers.service.JobService;
+import com.clipers.clipers.service.ApplicationService;
+import com.clipers.clipers.service.AIMatchingService;
+import com.clipers.clipers.dto.matching.BatchMatchResponseDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,13 +30,19 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "*")
 public class JobController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JobController.class);
+
     private final JobService jobService;
     private final AuthService authService;
+    private final AIMatchingService aiMatchingService;
+    private final ApplicationService applicationService;
 
     @Autowired
-    public JobController(JobService jobService, AuthService authService) {
+    public JobController(JobService jobService, AuthService authService, AIMatchingService aiMatchingService, ApplicationService applicationService) {
         this.jobService = jobService;
         this.authService = authService;
+        this.aiMatchingService = aiMatchingService;
+        this.applicationService = applicationService;
     }
 
     @PostMapping
@@ -218,17 +228,72 @@ public class JobController {
         return ResponseEntity.ok(matches);
     }
 
+    // ===== AI Matching Test Endpoint =====
+    @GetMapping("/test-ai-matching")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<Map<String, Object>> testAIMatching(@RequestParam String jobId,
+                                                              @RequestParam List<String> candidateIds) {
+        BatchMatchResponseDTO result = aiMatchingService.matchBatchCandidates(candidateIds, jobId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "ok");
+        response.put("jobId", result != null ? result.getJobId() : jobId);
+        response.put("topMatches", result != null ? result.getMatches() : List.of());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{jobId}/apply")
+    @PreAuthorize("hasRole('CANDIDATE')")
     public ResponseEntity<Void> applyToJob(@PathVariable String jobId) {
         try {
             String userId = getCurrentUserId();
-            // En producción, aquí se crearía una aplicación al trabajo
-            // Por ahora solo simulamos
-            System.out.println("Usuario " + userId + " aplicó al trabajo " + jobId);
+            log.info("[POST /api/jobs/{}/apply] Solicitud de aplicar recibida. userId={} ", jobId, userId);
+            applicationService.applyToJob(jobId, userId);
+            log.info("[POST /api/jobs/{}/apply] Aplicación creada o idempotente para userId={}", jobId, userId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
+            log.error("[POST /api/jobs/{}/apply] Error: {}", jobId, e.getMessage(), e);
             throw new RuntimeException("Error al aplicar al trabajo: " + e.getMessage(), e);
         }
+    }
+
+    @GetMapping("/{jobId}/applicants")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<List<JobApplication>> getApplicants(@PathVariable String jobId) {
+        // Validar ownership: el usuario actual debe ser dueño de la empresa del job
+        var currentUserId = getCurrentUserId();
+        log.info("[GET /api/jobs/{}/applicants] Solicitud recibida por userId={}", jobId, currentUserId);
+        Job job = jobService.findById(jobId)
+                .orElseThrow(() -> new RuntimeException("Empleo no encontrado"));
+        if (job.getCompany() == null || job.getCompany().getUser() == null ||
+                !job.getCompany().getUser().getId().equals(currentUserId)) {
+            log.warn("[GET /api/jobs/{}/applicants] Acceso denegado. ownerId={} currentUserId={}", jobId,
+                    job.getCompany() != null && job.getCompany().getUser() != null ? job.getCompany().getUser().getId() : "null",
+                    currentUserId);
+            throw new RuntimeException("No autorizado: el empleo no pertenece a tu empresa");
+        }
+        var applicants = applicationService.getApplicantsForJob(jobId);
+        log.info("[GET /api/jobs/{}/applicants] {} postulaciones retornadas", jobId, applicants != null ? applicants.size() : 0);
+        return ResponseEntity.ok(applicants);
+    }
+
+    @GetMapping("/{jobId}/applicants/ranked")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<List<JobMatch>> getRankedApplicants(@PathVariable String jobId) {
+        // Validar ownership antes de rankear
+        var currentUserId = getCurrentUserId();
+        log.info("[GET /api/jobs/{}/applicants/ranked] Solicitud recibida por userId={}", jobId, currentUserId);
+        Job job = jobService.findById(jobId)
+                .orElseThrow(() -> new RuntimeException("Empleo no encontrado"));
+        if (job.getCompany() == null || job.getCompany().getUser() == null ||
+                !job.getCompany().getUser().getId().equals(currentUserId)) {
+            log.warn("[GET /api/jobs/{}/applicants/ranked] Acceso denegado. ownerId={} currentUserId={}", jobId,
+                    job.getCompany() != null && job.getCompany().getUser() != null ? job.getCompany().getUser().getId() : "null",
+                    currentUserId);
+            throw new RuntimeException("No autorizado: el empleo no pertenece a tu empresa");
+        }
+        List<JobMatch> ranked = applicationService.rankApplicantsForJob(jobId);
+        log.info("[GET /api/jobs/{}/applicants/ranked] {} candidatos rankeados retornados", jobId, ranked != null ? ranked.size() : 0);
+        return ResponseEntity.ok(ranked);
     }
 
     @GetMapping("/locations")

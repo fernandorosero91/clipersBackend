@@ -61,6 +61,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/test/**").permitAll()
+                .requestMatchers("/api/ai/health").permitAll()
                 .requestMatchers("/api/clipers/public/**").permitAll()
                 .requestMatchers("/api/clipers/admin/clear-all").permitAll() // Temporal para pruebas
                 .requestMatchers("/api/clipers/admin/clear-all-data").permitAll() // Temporal para pruebas
