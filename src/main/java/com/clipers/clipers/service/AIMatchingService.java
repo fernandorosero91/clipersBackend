@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -83,6 +85,7 @@ public class AIMatchingService {
         ATSProfile atsProfile = user.getAtsProfile();
         if (atsProfile != null) {
             candidate.setSummary(atsProfile.getSummary());
+            candidate.setLocation(atsProfile.getLocation()); // Nuevo campo de ubicación
             
             // Convertir Education
             if (atsProfile.getEducation() != null) {
@@ -98,7 +101,7 @@ public class AIMatchingService {
                 candidate.setEducation(educationList);
             }
             
-            // Convertir Experience
+            // Convertir Experience y calcular años de experiencia
             if (atsProfile.getExperience() != null) {
                 List<ExperienceDTO> experienceList = atsProfile.getExperience().stream()
                     .map(exp -> new ExperienceDTO(
@@ -110,6 +113,10 @@ public class AIMatchingService {
                     ))
                     .collect(Collectors.toList());
                 candidate.setExperience(experienceList);
+                
+                // Calcular años de experiencia total
+                Integer totalYears = calculateTotalExperienceYears(atsProfile.getExperience());
+                candidate.setExperienceYears(totalYears);
             }
             
             // Extraer Skills
@@ -341,5 +348,30 @@ public class AIMatchingService {
         response.setRankedCandidates(new ArrayList<>());
         response.setTotalCandidates(0);
         return response;
+    }
+    
+    /**
+     * Calcula el total de años de experiencia a partir de una lista de experiencias
+     * @param experiences Lista de experiencias del candidato
+     * @return Total de años de experiencia (redondeado)
+     */
+    private Integer calculateTotalExperienceYears(List<Experience> experiences) {
+        if (experiences == null || experiences.isEmpty()) {
+            return 0;
+        }
+        
+        long totalMonths = experiences.stream()
+            .mapToLong(exp -> {
+                LocalDate start = exp.getStartDate();
+                LocalDate end = exp.getEndDate() != null ? exp.getEndDate() : LocalDate.now();
+                
+                if (start == null) return 0;
+                
+                return ChronoUnit.MONTHS.between(start, end);
+            })
+            .sum();
+        
+        // Convertir meses a años (redondeando)
+        return Math.toIntExact(totalMonths / 12);
     }
 }
