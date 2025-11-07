@@ -20,6 +20,7 @@ import java.util.Optional;
 @Service
 @Transactional
 public class ApplicationService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApplicationService.class);
 
     private final JobApplicationRepository jobApplicationRepository;
     private final JobRepository jobRepository;
@@ -111,4 +112,3 @@ public class ApplicationService {
         return saved;
     }
 }
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApplicationService.class);
